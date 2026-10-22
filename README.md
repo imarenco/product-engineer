@@ -92,8 +92,8 @@ stopped at.
 | Read the repo, the ticket and the design; run builds, tests, linters, simulators and browsers locally | any time |
 | Create the work branch | at Preflight, from the fresh remote base — your base branch is never edited |
 | Write the project context file | at Preflight, with the values you give (`.claude/project-context.md`; you commit it yourself) |
-| Change the product code | only after you approve the plan, and only inside it; anything the plan didn't foresee is a question |
-| Push, open the PR, publish evidence, fill tracker fields | only in the last phase, and only when the review verdict is PASS or every failure was waived by you; otherwise it asks first |
+| Change the product code | only after you approve the plan (`--automatic`: the flag is the approval), and only inside it; anything the plan didn't foresee is a question (`--automatic`: the run stops) |
+| Push, open the PR, publish evidence, fill tracker fields | only in the last phase, and only when the review verdict is PASS or every failure was waived by you; otherwise it asks first. With `--automatic`: a draft PR instead, and no tracker fields |
 | Comment on the ticket, move its status, post to a team channel | only when you ask, or with a standing choice you saved |
 | Write test data to a shared environment (staging, a shared database or queue) | only after you confirm, before the first write; production only when the context marks it read-only |
 
@@ -166,6 +166,7 @@ Examples:
 /product-engineer PROJ-456 --backend              # backend ticket: API, DB and queue checks
 /product-engineer PROJ-123 --test-only --both     # QA an existing feature on iOS and Android
 /product-engineer PROJ-123 resume
+/product-engineer PROJ-789 --web --automatic     # pipeline: no questions, ends with a PR and result.json
 ```
 
 Plain requests work too: "implement PROJ-123", "QA PROJ-123", "verify the ACs of PROJ-123".
