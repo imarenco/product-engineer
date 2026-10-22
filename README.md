@@ -1,13 +1,18 @@
 # product-engineer
 
-**A [Claude Code](https://claude.com/claude-code) skill that takes a ticket from your tracker to a
-reviewed, tested pull request — and waits for your approval before it writes any code.**
+**A skill for AI coding agents that takes a ticket from your tracker to a reviewed, tested pull
+request — and waits for your approval before it writes any code.**
+
+Works with **Claude Code, Cursor and GitHub Copilot**. It's written in the open
+[Agent Skills](https://agentskills.io) format (`SKILL.md`), so you install it once as a folder and
+your agent picks it up.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Platform: macOS](https://img.shields.io/badge/platform-macOS-lightgrey.svg)
-![Claude Code skill](https://img.shields.io/badge/Claude%20Code-skill-orange.svg)
+![Agent Skills](https://img.shields.io/badge/Agent%20Skills-SKILL.md-orange.svg)
+![Agents: Claude Code · Cursor · GitHub Copilot](https://img.shields.io/badge/agents-Claude%20Code%20%C2%B7%20Cursor%20%C2%B7%20Copilot-555.svg)
 
-Give it a ticket key. It works the way a careful product engineer would:
+Give your agent a ticket key. It then works the way a careful product engineer would:
 
 - reads the ticket, its comments, linked tickets and the design
 - rewrites every acceptance criterion (AC) so it can be tested
@@ -46,14 +51,14 @@ without changing any code.
 
 ## Quick start
 
-1. Install the skill for your user:
+1. Clone the skill into your agent's skills folder ([all options](#installation)). For Claude Code
+   and Cursor, one folder serves both:
    ```sh
    git clone https://github.com/imarenco/product-engineer.git ~/.claude/skills/product-engineer
    ```
-2. Open Claude Code in the repo you work on and run:
-   ```
-   /product-engineer PROJ-123
-   ```
+2. Open your agent in the repo you work on and run the skill — `/product-engineer PROJ-123`, or just
+   ask: "implement PROJ-123".
+
 3. Answer the setup questions. On the first run the skill drafts the repo's
    [project context](#configuration) from what it finds (commands, CI, devices) and asks only for
    what it can't: your tracker, design tool, base-branch rule and PR conventions. Commit that file
@@ -122,20 +127,21 @@ The skill runs on **macOS**: its media scripts use Swift (AVFoundation), `sips` 
 
 ## Installation
 
-Clone the repo into a Claude Code skills folder. The skill is named `product-engineer` (the `name` in
+Clone the repo into your agent's skills folder. The skill is named `product-engineer` (the `name` in
 `SKILL.md`), so the command is `/product-engineer`; keep the folder name the same.
 
-**For you, in every repo:**
+| Agent | For you, in every repo | For one repo, shared with the team (commit it) |
+|---|---|---|
+| Claude Code | `~/.claude/skills/product-engineer` | `.claude/skills/product-engineer` |
+| Cursor | `~/.cursor/skills/product-engineer` — or the Claude Code folder, which Cursor also reads | `.cursor/skills/product-engineer` |
+| GitHub Copilot | see Copilot's docs for a user-level folder | `.github/skills/product-engineer` or `.agents/skills/product-engineer` |
+
+For example, for Claude Code and Cursor at once:
 ```sh
 git clone https://github.com/imarenco/product-engineer.git ~/.claude/skills/product-engineer
 ```
 
-**For one repo, shared with everyone who works in it** (from the repo root, then commit it):
-```sh
-git clone https://github.com/imarenco/product-engineer.git .claude/skills/product-engineer
-```
-
-To update, run `git pull` in the skill's folder. For other agents, see [Compatibility](#compatibility).
+To update, run `git pull` in the skill's folder. How the agents differ: [Compatibility](#compatibility).
 
 ## Usage
 
@@ -241,6 +247,7 @@ ANDROID_AVD=Pixel_8      # unset = the running emulator, or the first AVD
 
 | | Supported |
 |---|---|
+| Agents | Claude Code, Cursor, GitHub Copilot |
 | Trackers | Jira, Linear, GitHub Issues, none (the task comes in the conversation) |
 | Design | Figma, none |
 | Test surfaces | iOS simulator and Android emulator (React Native or native), web (Playwright), backend (HTTP, GraphQL, SQL, any CLI), or an external skill or command your context names |
@@ -254,11 +261,13 @@ Another tracker or design tool is one file under `providers/` that implements th
 `SKILL.md` follows the [Agent Skills](https://agentskills.io) format. It's written for the three most
 used coding agents:
 
-| Agent | Status | Install into |
-|---|---|---|
-| Claude Code | built and tested for it | `~/.claude/skills/product-engineer` |
-| Cursor | reads skills, including from `~/.claude/skills/`; not tested with this skill yet | `~/.cursor/skills/product-engineer`, or the Claude Code folder |
-| GitHub Copilot | reads `SKILL.md` from `.github/skills/` or `.agents/skills/`; not tested with this skill yet | `.github/skills/product-engineer` in the repo (check Copilot's docs for a user-level folder) |
+| Agent | Status |
+|---|---|
+| Claude Code | built and tested with it |
+| Cursor | reads Agent Skills (also from `~/.claude/skills/`); not tested with this skill yet |
+| GitHub Copilot | reads Agent Skills from `.github/skills/` or `.agents/skills/`; not tested with this skill yet |
+
+Where to install for each: [Installation](#installation).
 
 The drivers, scripts and project context are plain shell and markdown, so they work the same in all
 three. What differs is each agent's own tools. `SKILL.md` § Agent tools names each capability once —
