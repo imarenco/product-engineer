@@ -6,7 +6,7 @@
 #   compare <design.png> <shot.png> [out.png]  design | app side by side (default <shot>-vs-design.png)
 #   jpg <png>...                      half-size JPEGs for the PR
 #   mp4 <in.webm> <out.mp4>           convert a browser recording (ffmpeg, or ffmpeg-static from npm)
-#   publish <KEY> <file>...           orphan branch pr-assets/<KEY>; prints SHA-pinned URLs (name = path after shots/)
+#   publish <KEY> <file>...           orphan branch pr-assets/<KEY>; prints `<name> <SHA-pinned URL>` per file (name = path after shots/)
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null || pwd)"
@@ -70,10 +70,16 @@ case "${1:-}" in
       i=$((i + 1))
     done
     TREE=$(git write-tree) && [ -n "$TREE" ] || { echo "publish: write-tree failed"; exit 1; }
-    COMMIT=$(git commit-tree "$TREE" ${PARENT:+-p "$PARENT"} -m "chore: $KEY PR evidence") && [ -n "$COMMIT" ] \
-      || { echo "publish: commit-tree failed, nothing pushed"; exit 1; }
+    # the same files again (a re-run of publish) → reuse the existing commit: no empty commit, same URLs
+    if [ -n "$PARENT" ] && [ "$TREE" = "$(git rev-parse "$PARENT^{tree}" 2>/dev/null)" ]; then COMMIT="$PARENT"
+    else
+      COMMIT=$(git commit-tree "$TREE" ${PARENT:+-p "$PARENT"} -m "chore: $KEY PR evidence") && [ -n "$COMMIT" ] \
+        || { echo "publish: commit-tree failed, nothing pushed"; exit 1; }
+    fi
     git push -q origin "$COMMIT:$REF" || { echo "publish: push failed"; exit 1; }
-    for n in "${names[@]}"; do echo "https://github.com/$NWO/blob/$COMMIT/$n?raw=true"; done
+    # percent-encoded: a space, #, ? or % in a name would otherwise break or redirect the link
+    # `<published name> <url>` per line — the format $W/media.md takes as is
+    for n in "${names[@]}"; do echo "$n https://github.com/$NWO/blob/$COMMIT/$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1]))' "$n")?raw=true"; done
     ;;
   *) sed -n '2,9p' "$0"; exit 2 ;;
 esac

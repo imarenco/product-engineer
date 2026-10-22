@@ -33,7 +33,7 @@ Task {
     try await export.export(to: out, as: .mp4)
     print("video: \(out.path) (\(String(format: "%.1f", CMTimeGetSeconds(cursor)))s)")
   } catch {
-    print("join failed: \(error)")
+    print("join failed: \(error.localizedDescription) (\(out.path))")
     failed = true
   }
   done.signal()

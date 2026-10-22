@@ -33,7 +33,7 @@ apply unless `$CTX` § People & process says otherwise:
 3. Implement plan steps in order. After each, the touched files must typecheck (only your errors
    count; the total must stay at the baseline).
 4. A step that turns out different from the plan in a way the user would notice → stop and ask
-   (a question: planned vs actual vs impact; `--automatic`: the run stops, `SKILL.md` § Automatic mode). File-layout differences that don't change
+   (a question: planned vs actual vs impact; `--automatic`: the run stops, `modes/automatic.md`). File-layout differences that don't change
    behaviour are not deviations.
 5. Temporary code to force a state for testing is marked `// TEMPTEST <TICKET>` and never survives
    to Ship.

@@ -11,12 +11,25 @@ socket so each mobile driver call (a fresh shell) reuses the same session.
   maestro_session.py stop                       end the session
 The server starts on first use and exits after IDLE seconds without requests.
 """
-import hashlib, json, os, select, signal, socket, subprocess, sys, tempfile, time
+import fcntl, hashlib, json, os, queue, select, signal, socket, subprocess, sys, tempfile, threading, time
 
 IDLE = 45 * 60
-CALL_TIMEOUT = 600
+CALL_TIMEOUT = int(os.environ.get("MAESTRO_CALL_TIMEOUT", 600))  # seconds one maestro call may take
 SOCK = os.path.join(tempfile.gettempdir(),
                     "maestro-%s.sock" % hashlib.sha1(os.environ.get("SIM_SESSION", os.getcwd()).encode()).hexdigest()[:10])
+
+
+class ClientGone(Exception):
+    """The client hung up mid-call (the agent's tool call timed out, a Ctrl-C)."""
+
+
+def client_gone(conn):
+    # the client sends nothing while it waits, so the socket only turns readable when it closes
+    try:
+        r, _, _ = select.select([conn], [], [], 0)
+        return bool(r) and conn.recv(1, socket.MSG_PEEK) == b""
+    except OSError:
+        return True
 
 
 class Mcp:
@@ -27,9 +40,17 @@ class Mcp:
                                   stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
                                   start_new_session=True)
         self.n = 0
-        self.call("initialize", {"protocolVersion": "2024-11-05", "capabilities": {},
-                                 "clientInfo": {"name": "product-engineer", "version": "1"}})
-        self._send({"jsonrpc": "2.0", "method": "notifications/initialized"})
+        # A reader thread, not select() on the pipe: readline() buffers ahead, so a log line and a
+        # response written together would leave the response in the buffer with select() never firing.
+        self.lines = queue.Queue()
+        threading.Thread(target=self._read, daemon=True).start()
+        try:
+            self.call("initialize", {"protocolVersion": "2024-11-05", "capabilities": {},
+                                     "clientInfo": {"name": "product-engineer", "version": "1"}})
+            self._send({"jsonrpc": "2.0", "method": "notifications/initialized"})
+        except Exception:
+            self.kill()  # a maestro that failed its handshake would keep the device driver
+            raise
 
     def kill(self):
         try:
@@ -41,28 +62,44 @@ class Mcp:
             except Exception:
                 pass
 
+    def _read(self):
+        for line in self.p.stdout:
+            self.lines.put(line)
+        self.lines.put(None)  # EOF: maestro exited
+
     def _send(self, o):
         self.p.stdin.write(json.dumps(o) + "\n")
         self.p.stdin.flush()
 
-    def call(self, method, params):
+    def call(self, method, params, cancel=None):
         self.n += 1
         self._send({"jsonrpc": "2.0", "id": self.n, "method": method, "params": params})
         end = time.time() + CALL_TIMEOUT
         while time.time() < end:
-            if self.p.poll() is not None:
+            # every turn, not only when maestro is quiet: a chatty maestro must not hide a gone client
+            if cancel and cancel():
+                raise ClientGone()
+            try:
+                line = self.lines.get(timeout=1)
+            except queue.Empty:
+                if self.p.poll() is not None:
+                    raise RuntimeError("maestro mcp exited")
+                if cancel and cancel():
+                    raise ClientGone()
+                continue
+            if line is None:
                 raise RuntimeError("maestro mcp exited")
-            r, _, _ = select.select([self.p.stdout], [], [], 1)
-            if r:
-                line = self.p.stdout.readline()
-                if line.lstrip().startswith("{"):
+            if line.lstrip().startswith("{"):
+                try:
                     o = json.loads(line)
-                    if o.get("id") == self.n:
-                        return o
+                except ValueError:
+                    continue
+                if o.get("id") == self.n:
+                    return o
         raise TimeoutError("maestro call timed out")
 
-    def tool(self, name, args):
-        o = self.call("tools/call", {"name": name, "arguments": args})
+    def tool(self, name, args, cancel=None):
+        o = self.call("tools/call", {"name": name, "arguments": args}, cancel)
         if "error" in o:
             return False, json.dumps(o["error"])
         res = o.get("result", {})
@@ -73,16 +110,23 @@ class Mcp:
 LOST = ("unreachable", "not ready", "session error", "Connection refused", "Internal error")
 
 
-def handle(mcp, req):
+def handle(mcp, req, cancel=None):
     if req["op"] == "run":
-        return mcp.tool("run", {"device_id": req["device"], "files": [req["flow"]]})
-    ok, text = mcp.tool("inspect_screen", {"device_id": req["device"]})
+        return mcp.tool("run", {"device_id": req["device"], "files": [req["flow"]]}, cancel)
+    ok, text = mcp.tool("inspect_screen", {"device_id": req["device"]}, cancel)
     if req["op"] == "warm":  # any cheap call connects the device driver
         text = "session ready" if ok else text
     return ok, text
 
 
 def serve():
+    # one server per session: two first calls at once each start one, and the loser's cleanup would
+    # delete the winner's socket. The lock lives as long as this process.
+    lock = open(SOCK + ".lock", "w")
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        return
     try:
         os.unlink(SOCK)
     except FileNotFoundError:
@@ -91,23 +135,46 @@ def serve():
     srv.bind(SOCK)
     srv.listen(4)
     srv.settimeout(IDLE)
-    mcp = None
+    mcp = None  # started by the first request, and again after a failure
     # whatever happens, never leave a socket file behind: the next client would connect to nothing
     try:
-        mcp = Mcp()
         while True:
             try:
                 conn, _ = srv.accept()
             except socket.timeout:
                 break
             with conn:
-                req = json.loads(conn.makefile().readline())
+                try:
+                    req = json.loads(conn.makefile().readline())
+                    req["op"]
+                except (ValueError, KeyError, TypeError, OSError):
+                    continue  # a client that connected and left (or sent garbage): not fatal
                 if req["op"] == "stop":
                     conn.sendall(b'{"ok": true, "text": "stopped"}\n')
                     break
                 for attempt in range(2):
                     try:
-                        ok, text = handle(mcp, req)
+                        if mcp is None:
+                            try:
+                                mcp = Mcp()
+                            except Exception as e:
+                                ok, text = False, "session error: %s%s" % ("reconnect failed: " if attempt else "", e)
+                                break
+                        ok, text = handle(mcp, req, lambda: client_gone(conn))
+                    except ClientGone:
+                        # nobody is waiting for this flow any more: stop it now, so the next call (or
+                        # `stop`) isn't blocked behind it for up to CALL_TIMEOUT
+                        mcp.kill()
+                        mcp = None
+                        ok, text = False, "client gone"
+                        break
+                    except TimeoutError:
+                        # a hung maestro: never re-run the flow (the client would give up first) —
+                        # restart it on the next request instead
+                        mcp.kill()
+                        mcp = None
+                        ok, text = False, "maestro call timed out after %d s; the flow was not re-run" % CALL_TIMEOUT
+                        break
                     except Exception as e:
                         ok, text = False, "session error: %s" % e
                     # another maestro process (a plain `maestro test`, a second session) took the device
@@ -116,12 +183,11 @@ def serve():
                     if ok or attempt or not any(k in text for k in LOST):
                         break
                     mcp.kill()
-                    try:
-                        mcp = Mcp()
-                    except Exception as e:
-                        ok, text = False, "session error: reconnect failed: %s" % e
-                        break
-                conn.sendall((json.dumps({"ok": ok, "text": text}) + "\n").encode())
+                    mcp = None
+                try:
+                    conn.sendall((json.dumps({"ok": ok, "text": text}) + "\n").encode())
+                except OSError:
+                    pass  # the client went away (Ctrl-C); the session stays up for the next call
     finally:
         if mcp:
             mcp.kill()
@@ -157,8 +223,11 @@ def request(req):
         else:
             return {"ok": False, "text": "session error: the session server didn't start (is `maestro` on PATH?)"}
     s.settimeout(CALL_TIMEOUT + 30)
-    s.sendall((json.dumps(req) + "\n").encode())
-    line = s.makefile().readline()
+    try:
+        s.sendall((json.dumps(req) + "\n").encode())
+        line = s.makefile().readline()
+    except OSError as e:
+        return {"ok": False, "text": "session error: no answer from the session server (%s); run the step again" % e}
     if not line:
         return {"ok": False, "text": "session error: the session server stopped during the call; run the step again"}
     return json.loads(line)

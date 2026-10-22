@@ -27,12 +27,19 @@ on every call.
   `curl localhost:<port>/status`.
 - After `setup` (npm ci) the app can show "Unable to resolve module @babel/runtime/…" with the file
   on disk: stale watchman. `watchman watch-del-all`, restart Metro, relaunch.
-- `npm ci` fails with ENOTEMPTY while a Gradle daemon holds `node_modules`: `setup` stops Metro and
-  Gradle daemons first.
+- `npm ci` fails with ENOTEMPTY while a Gradle daemon holds `node_modules`: `setup` stops Metro first;
+  on ENOTEMPTY it stops the Gradle daemons (`./gradlew --stop`) and retries once.
 - A `git checkout -- <file>` after `pod install` (pbxproj churn) changes the native fingerprint, so
   `needs` asks for a rebuild the installed app doesn't need — `build` is the safe answer.
 
-## Testing
+## Test
+- "build: not needed" means the installed Debug app already matches the native code and loads the
+  ticket's JS from Metro — no rebuild for a JS-only ticket. `metro` resets its cache by itself only
+  after a branch or dependency change.
+- `quiet on` (LogBox toasts off) and relaunch once; JS-only changes after that: `reload`, or
+  `relaunch` when the screen still shows old code; `quiet off` before the leftover check.
+- Evidence: `quiet on` + `relaunch` before the replay (the leftover check has passed), `quiet off`
+  right after it — the line must not survive to Ship.
 - `quiet on/off` edits `index.js` → Metro reloads the app back to its first tab: run `quiet` before
   navigating, never mid-test, and `quiet off` before the leftover check.
 - React Native 0.81 JS logs reach neither `simctl log` nor Metro's log on iOS — probe state with

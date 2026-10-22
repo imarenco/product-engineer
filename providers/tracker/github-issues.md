@@ -34,6 +34,11 @@ a video-reader skill if the context names one.
 - `transition`: `gh issue close <n>` / reopen — only when the user asks (PRs usually close issues with
   `Closes #n` in the PR body instead).
 
+## References in commits and PRs
+The ticket key here is a bare number: write it as `#<n>` wherever Ship puts the key (the commit
+message, the PR's `Refs:` line) — `Refs: 123` links nothing, `Refs: #123` links the issue. Use
+`Closes #<n>` instead only when the team closes issues from PRs.
+
 ## branch_prefix(type)
 GitHub issues have no type field (unless the org uses issue types): the labels from `get_ticket`,
 mapped by the config's `branch_prefix`. No matching label → ask.

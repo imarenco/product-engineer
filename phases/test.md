@@ -5,12 +5,7 @@ Evidence phase, run once everything passes — except for forced states (§3), w
 later.
 
 ## 1. Unit tests
-(`--test-only`: write none — run §2 with the plan's Automated checks once, note the results for the
-report, then go to §3. A failing check is a finding only if it doesn't fail on the base too — in
-this order: `gh pr checks <N>` when there is a PR; else the base's latest CI run
-(`gh run list --branch <base> --limit 3`); else one run in a temporary worktree
-(`git worktree add <scratch dir> $(git merge-base origin/<base> HEAD)`, the install command first,
-`git worktree remove` after) — never by checking out the base here: it breaks the branch check.)
+(`--test-only`: none — `modes/test-only.md`, **Test**.)
 
 Which code gets unit tests, where specs live and which spec to copy the style of: `$CTX` § Code
 conventions. For each pure function the Code phase extracted, answer before writing a test:
@@ -33,7 +28,10 @@ Run every line of `plan.md` § Automated checks: your specs first, then **each C
 it** (whole suite / whole repo when CI does) — a PR must not be the first place a CI check runs — plus
 the local-only commands of `$CTX` § Commands that apply to touched files (format check, typecheck,
 forbidden patterns, integration tests in backend repos). Compare each with its Preflight baseline:
-only a new failure is yours. Record each result (command, pass/fail, counts) in `state.md` § Gates with the
+only a new failure is yours. Run independent gates (unit suite, typecheck, lint) as parallel background
+runs — the wall time is the longest one, not the sum. Inside the fix loop (§4) a round re-runs the
+touched specs and the typecheck; the full set runs again before you leave this phase, so the results
+Ship reuses are current. Record each result (command, pass/fail, counts) in `state.md` § Gates with the
 code's fingerprint (`$SKILL/scripts/changes.sh fingerprint <context file>`, taken right before the
 run) — Ship reports them and re-runs only what the code has changed under. Respect the notes there (known noise,
 backlogs). When the typecheck has a backlog, the total must equal the baseline taken before coding —
@@ -49,19 +47,16 @@ when it passes on each; record the verdict per AC and surface.
    otherwise run `needs` and only what it marks NEEDED: `setup` (dependencies changed since the last
    setup — once covers both platforms), `build` per platform (native code changed since this
    driver's last build, or the app was installed by someone else; a background run, minutes).
-   `boot` (Android) when no emulator runs. React Native (`references/react-native.md`): "build: not
-   needed" means the installed Debug app already matches the native code and loads the ticket's JS
-   from Metro — no rebuild for a JS-only ticket; `metro` resets its cache by itself only after a
-   branch or dependency change; `quiet on` (LogBox toasts off) and relaunch once, `quiet off` before
-   the leftover check; JS-only changes after that: `reload`, or `relaunch` when the screen still
-   shows old code. Native apps: every code change → `needs`, then `build` (minutes) before
+   `boot` (Android) when no emulator runs. React Native: `references/react-native.md` § Test (Metro,
+   `quiet`, `reload`). Native apps: every code change → `needs`, then `build` (minutes) before
    re-testing. Web: `setup` (driver, once per machine), `start` (local app)
    and `login` (the user logs in once by hand) when needed; after a code change, restart/reload the
    app the way `$CTX` says. Backend: `status`; restart the local service after backend code changes;
    seed data per `$CTX`. External surface: follow the named skill's own setup.
 2. **Per AC, from the test plan** — the same rules on every surface:
-   - speed rules in `references/mobile.md` § Maestro → Speed: a step is a whole state change,
-     `inspect` before tapping a new screen, waits on the screen, relaunch only for a clean start.
+   - a step is a whole state change; `inspect` a new screen before acting on it; wait on the
+     screen, not with sleeps; relaunch only for a clean start (mobile: `references/mobile.md` § Maestro
+     → Speed).
    - one **step** per state, named `ac<N>-<k>-<state>` (k orders the steps inside the AC:
      `ac5-1-search`, `ac5-2-empty`). A passing `ac*` step is saved to the surface's `flows/` — the
      Evidence phase replays exactly these. Exploratory steps get no name or a `look-` name.
@@ -70,7 +65,8 @@ when it passes on each; record the verdict per AC and surface.
      leaves things as the next AC expects (mobile: the screen; backend: the data — or set
      `BACKEND_RESET_CMD`). A tap on the wrong screen still reports success.
    - **every `ac` step must be able to fail.** For each assertion, know the input or code change that
-     would turn it red; if there is none, it is decoration — rewrite it. No `optional: true`, no
+     would turn it red; if there is none, it is decoration — rewrite it. No `optional: true` on an assertion (only
+     on the pure wait of `references/mobile.md`), no
      assertion that holds on any screen, no iOS `back` (it does nothing there). Selectors in the
      order the surface manual gives (test id / role first, coordinates last). For a bug AC (build
      mode), the same check must have failed on the unfixed code — the `repro-<n>` step from Ticket
@@ -91,40 +87,22 @@ when it passes on each; record the verdict per AC and surface.
      the first use. Otherwise force them with `// TEMPTEST <TICKET>` code, one at a time: write the
      forced values once as `const NAME = …; // TEMPTEST <TICKET>` lines, then each state is one
      `force <file> NAME=<value>… shot ac<N>-<k>-<state>-forced` call (mobile; native drivers rebuild
-     first, so each forced state costs a build). Forced steps get no `ac`
-     name (the forcing is gone by Evidence); capture their evidence now with
-     `shot ac<N>-<k>-<state>-forced`, then remove the forcing. Video of a forced state (mobile) — in
-     the forced dir every step is recorded and screenshotted; a name ending in `-forced` is never
-     saved to `flows/` by any driver. **Required** when an AC has no replayable flow (forcing only)
-     and `$CTX` § Tracker `done_fields` expects a video: record it now on that AC's main state — Ship
-     can't, the forcing is gone by then. Write the literal forced dir `<F>` = `$W/shots/<ios|android>/forced`
-     on every line (one tool call per line):
-     ```
-     mkdir -p <F> && rm -rf <F>/clips && touch <F>/.recording
-     SIM_PLATFORM=<ios|android> SIM_OUT=<F> <driver> step '<commands>' ac<N>-<k>-<state>-forced
-     rm <F>/.recording && SIM_PLATFORM=<ios|android> SIM_OUT=<F> <driver> video ac<N>-forced -ac<N>-
-     ```
-     (`<driver>`: the surface's mobile driver, `references/mobile.md` § Which driver.)
-     After editing a module with
+     first, so each forced state costs a build). A forced step's name ends in `-forced`: it is never
+     saved to `flows/` (the forcing is gone by Evidence), so its `ac<N>-<k>-<state>-forced` shot,
+     taken now, is its evidence (published with the other `ac*` shots); then remove the forcing. A video of a forced state is **required** when an AC has no replayable flow
+     (forcing only) and `$CTX` § Tracker `done_fields` expects a video — record it now, Ship can't:
+     `references/mobile.md` § Forced states. After editing a module with
      module-level state, relaunch (hot reload can drop that state without re-running hooks).
 3. **Visual check against the design** — UI surfaces, every UI state an AC or the design shows (the
-   test plan's "design frame to compare"). Skipped only when the Design phase recorded no design;
-   with `provider: none`, compare against what `providers/design/none.md` names instead.
-   - Reach the state, `shot look-<state>` (never `ac…` — only evidence is published), then
-     `$SKILL/scripts/media.sh compare $W/design/<frame>.png <shot>.png` → `<shot>-vs-design.png`
-     (design left, app right, same height) and Read that one image. Missing frame → `screenshot(frame)`.
-   - Go through the checklist, top to bottom of the screen: **layout** (elements present, order,
-     alignment) · **spacing and sizes** (scaled per the config's `frame_vs_device`; eyes can't tell
-     4 from 8 px — check the code against `spec(frame)` for those) · **typography** (size, weight,
-     case, truncation) · **colours** (the token the spec's variable maps to) · **icons** (right glyph,
-     outline vs solid, stroke) · **copy** (exact, per the standing defaults) · **component states**
-     (disabled, selected, pressed, focus) · **safe areas, keyboard, scroll end**.
-   - Ignore what isn't the design: content data (names, times, counts), status bar, OS-native sheets,
-     dev-only overlays (LogBox, debug toasts), platform chrome the design doesn't draw.
+   test plan's "design frame to compare"). Skipped only for a ticket with no UI; when the Design phase
+   recorded no design (any provider), compare against what `providers/design/none.md` names instead.
+   - How: reach the state, take a `look-` shot, `compare` it with the frame, go through the checklist —
+     `references/visual-check.md`.
    - Result per state and surface, in `$W/state.md` § Visual (state, the `ac<N>-<k>-<state>` step that
      reaches it — Evidence compares that step's screenshot — frame, surface, result, differences): **MATCH** · **DELTA** — a difference you can name and justify (platform
      convention, an existing shared component, a design detail the AC overrides) → a design delta for
-     the PR / report, decided with the user at the next gate when it isn't obvious · **MISMATCH** —
+     the PR / report; one that isn't obvious is recorded `DELTA (concern)` — a concern for Review's
+     verdict (decided at Ship's CONCERNS question; `--automatic`: kept and listed) · **MISMATCH** —
      anything else that differs: it is a **FAIL** of that AC (§4 loop).
 4. **Verdict per AC and surface**: **PASS** (assertions green and every visual state MATCH/DELTA) ·
    **FAIL** (what differs) · **BLOCKED** (env/data can't
@@ -133,43 +111,46 @@ when it passes on each; record the verdict per AC and surface.
    § App knowledge). Write them into `$W/state.md` § Verdicts.
 
 ## 4. The fix loop — Test ⇄ Code until every AC is green
-**`--test-only`: skip this section.** A FAIL is re-run once (flaky driver / env), then recorded as a
-finding for `phases/qa-report.md` — steps to reproduce, expected vs actual, evidence, likely
-`file:line` — and you move on to the next AC. Never edit product code in test-only mode.
+**`--test-only`: skip this section** — `modes/test-only.md`, **No fix loop**.
 
 Any FAIL (an AC, a unit test, a gate or a review finding) sends you back to `phases/code.md`, then
 back here. Repeat:
 
 1. **Reproduce in one command** you have already run — the saved flow/spec/backend step that fails, a
    minimal one that asserts the exact symptom, or (visual MISMATCH) the same `look-` shot + `compare`. No reproduction → no fix (it's BLOCKED or flaky: re-run
-   once, then report).
+   once, then report). A Review `patch` finding with no failing command (a missing label, an unhandled
+   promise) is reproduced by its cited `file:line`, or by a unit test written to fail on it.
 2. **Triage what is wrong**: the code, the test (wrong tap point, stale screen, bad selector,
    tautological expectation), or the AC/plan (the behaviour asked for is impossible or contradicts
    another AC). Only the code costs a fix attempt; a wrong test is fixed in the test; a wrong AC/plan
-   goes to the user.
+   goes to the user (`--automatic`: the run stops).
 3. **Hypotheses before edits**: list 2–5 ranked, falsifiable causes, each with the observation that
    would confirm or kill it; test them one at a time with probes (state read, tagged debug output
    `// DEBUG-<TICKET>`, a narrower step). Never patch the symptom or weaken the assertion to pass.
 4. **Fix** the confirmed cause in the Code phase, under its rules and inside the approved plan (a fix
    that needs a behaviour change the plan didn't foresee → ask). Write the confirmed cause into
    `state.md` § Root causes — it goes into the PR.
-5. **Re-test everything, not just the failed AC**: gates + unit tests, then every AC's saved flows
-   (relaunch/restart, then each `ac*` step again with the same names; they overwrite the saved flows).
-   A fix can break an AC that was already green.
-6. Update `$W/state.md` § Verdicts (AC, surface, verdict, attempt n) — it survives
-   compaction. Run the leftover check (`SKILL.md` § Rules for every phase) before leaving the phase.
+5. **Re-test everything, not just the failed AC** — a fix can break an AC that was already green:
+   the gates (§2); the fixed AC's own steps again with `step`, under their `ac` names (a passing one is
+   saved now — it had no flow); then every saved flow in one call per surface — native app: `needs` →
+   `build` first; mobile: `relaunch`, web: restart the app per `$CTX`, then `<driver> verify`
+   (backend: `replay`). A step whose flow you changed is re-run with `step` under the same name (it
+   overwrites the saved flow).
+6. Update `$W/state.md` § Verdicts (AC, surface, verdict, attempt n) and § Attempts (hypothesis →
+   change → result, and the failing step's command) — they survive compaction and a resume. Run the leftover check (`SKILL.md` § Rules for every phase) before leaving the phase.
 7. Loop while anything is FAIL.
 
-**Cap:** 3 fix attempts per AC (`--automatic`: `SKILL.md` § Automatic mode). Three failed fixes usually mean the approach is wrong, not the
+**Cap:** 3 fix attempts per AC, and per gate the change broke (`--automatic`: `modes/automatic.md`). Three failed fixes usually mean the approach is wrong, not the
 details: on the 4th failure stop and ask a question with the evidence (what fails, hypotheses tested,
 what was tried) — rethink the approach (say which) / accept as known and continue / stop. "Accept"
-is a waiver of that AC: ask in the same round for the reason, owner and follow-up ticket, and write
-them into `state.md` § Waivers — Review derives WAIVED from them and Ship puts them in the PR without
+is a waiver of that AC (or gate): ask in the same round for the reason, owner and follow-up ticket, and
+write them into `state.md` § Waivers, naming the AC or the gate — Review derives WAIVED from them and Ship puts them in the PR without
 asking again. BLOCKED and HUMAN are not failures of the code — they don't loop; they go
-to the user once.
+to the user once (`--automatic`: moved on, `modes/automatic.md`).
 
-Leave this phase only when gates are green and every AC is PASS, or the user accepted each
-BLOCKED/HUMAN/FAIL (`--no-sim`: gates green, every AC recorded as — not checked). Next:
+Leave this phase only when gates are green (no failure beyond the baseline's `known` ones) and every AC is PASS, or the user accepted each
+BLOCKED/HUMAN/FAIL (`--no-sim`: gates green, every AC recorded as — not checked; `--automatic`: the
+AC and gate caps reached count as accepted, `modes/automatic.md`). Next:
 `phases/review.md`.
 
 ## Rationalizations — and the answer
@@ -178,7 +159,7 @@ BLOCKED/HUMAN/FAIL (`--no-sim`: gates green, every AC recorded as — not checke
 | "The screenshot looks right" | an assertion on the SHALL result; looks are for design comparison only |
 | "Close enough to the design" | name each difference: justified → DELTA, anything else → MISMATCH (FAIL) |
 | "It's flaky, skip it" | re-run once; still red → FAIL with the evidence, or BLOCKED with the reason |
-| "Small change, no need to re-test the other ACs" | re-test all saved flows — a two-line change can break any of them |
+| "Small change, no need to re-test the other ACs" | `verify` all saved flows (one call) — a two-line change can break any of them |
 | "The test passed first try" | see it fail once (break the logic) — a test that never failed may test nothing |
 | "The unit test covers it" | ACs are verified on a surface; unit tests prove logic, not the user-visible result |
 | "I'll clean the TEMPTEST/DEBUG code later" | the leftover check (`changes.sh leftover`) before leaving the phase |

@@ -7,8 +7,7 @@ silent decision.
 ## Tracker provider
 `$CTX` § Tracker names it (`provider: jira`, …) and gives its config (ids, AC format, key pattern,
 fields, media readers, standing defaults). Load `$SKILL/providers/tracker/<provider>.md` (Preflight
-already did) and use its operations — `get_ticket`, `get_related`, `read_media`
-(`providers/README.md`). No tracker (`provider: none`) → the task comes from the conversation or a
+already did) and use its operations — `get_ticket`, `get_related`, `read_media`. No tracker (`provider: none`) → the task comes from the conversation or a
 file (`providers/tracker/none.md`).
 
 ## Read, in this order
@@ -57,7 +56,8 @@ asserts. An AC you can't write this way (no observable result, two readings, a v
 "properly", "fast", "same as before" without a reference) is a gap, not a guess.
 
 **Bug tickets** (an issue type the tracker config's `branch_prefix` maps to `fix`, unless `$CTX`
-§ Tracker lists `bug_types`): for each AC write the triplet
+§ Tracker lists `bug_types`) — and, in any ticket, a **bug AC**: one that states a current wrong
+behaviour ("shows the old results", "crashes when…"). For each such AC write the triplet
 - Current: `WHEN <condition> THEN the app <wrong behaviour>` — reproduce it on the base as soon as a
   surface for it is ready (backend: now; a device: once Preflight's build is installed), as a step
   named `repro-<n>` (drivers never save it as a flow; keep its failure output for the PR's

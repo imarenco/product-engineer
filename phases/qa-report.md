@@ -3,7 +3,7 @@
 Replaces `phases/ship.md` when the run has `--test-only`. Goal: tell the team, with evidence, whether
 the already-developed feature meets every AC, and exactly what fails if not. **No work branch, no
 commit, no product-code change; nothing of the code is pushed** — only the share option the user
-picks in §3 may publish media (the assets branch, `phases/ship.md` §3).
+picks in §3 may publish media (the assets branch, `references/publish.md`).
 
 ## 1. Leave the tree as you found it
 - The leftover check passes (`SKILL.md` § Rules for every phase), then `git status --short`: nothing
@@ -18,11 +18,11 @@ Tested: <branch> @ <sha> (PR #N if any) · <date> · surfaces: <the ones tested,
 Verdict (derived as in `phases/review.md` §5): ✅ PASS — ready | ⚠️ CONCERNS — <which> | ❌ FAIL — <N> ACs fail
 
 ## Acceptance criteria
-| AC | Priority | <one column per surface tested> | How it was checked | Held by | Evidence |
+| AC | Priority | <one column per surface tested; none: one Verdict column, — not checked> | How it was checked | Held by | Evidence |
 |---|---|---|---|---|---|
 | #1 <paraphrase> | P0–P3 | ✅/❌/⚠️/— | <steps, assertions, design frame> | <test file:line / evidence only> | <screenshot / video / transcript> |
 
-## Findings (one per FAIL, most severe first)
+## Findings (one per FAIL, most severe first — from `state.md` § Findings)
 ### F1 — AC #N: <what is wrong, in user terms>
 **In short:** You <do X>. You see <Y>. You should see <Z>.  ← one plain line, no code words
 - Platform(s): … · Severity: blocker / major / minor (cosmetic)
@@ -35,6 +35,7 @@ Verdict (derived as in `phases/review.md` §5): ✅ PASS — ready | ⚠️ CONC
 (From `state.md` § Visual: each DELTA with its `-vs-design.png`; a MISMATCH is a finding above, severity minor unless it hides or breaks something.)
 ## Not checked and why (HUMAN / BLOCKED)
 ## Automated checks on this branch (the existing suite and each CI check, one run each, with results)
+## Decided automatically (`--automatic` only: every `auto:` line from analysis.md and state.md)
 ```
 A FAIL is reported, never fixed here — the fix belongs to the developer of the ticket (or a later
 run of this skill without `--test-only`).
@@ -50,7 +51,7 @@ run of this skill without `--test-only`).
 the chat ("posting to <TICKET> as usual"), no question. No `qa_share` → one question,
 recommended option first, plus "Always do this" variants; an "always" answer is written to `$CTX`
 as `qa_share` (logged `applied` in `$W/context-updates.md`):
-- **Comment on the ticket's PR** (when one exists): publish the media first (`phases/ship.md` §3,
+- **Comment on the ticket's PR** (when one exists): publish the media first (`references/publish.md`,
   `fail-*` images included),
   then `gh pr comment <N> --body-file $W/report-pr.md` (the report with the published URLs in place
   of local paths; same image/table conventions as `phases/ship.md`).
@@ -60,14 +61,15 @@ as `qa_share` (logged `applied` in `$W/context-updates.md`):
 
 ## 4. Answer in chat
 The verdict line, the AC table, the findings (each with its "In short" line and its
-`subbug-F<n>.md`), what wasn't checked, where the report and videos are, and what was shared. Update
-`state.md` to done.
+`subbug-F<n>.md`), what wasn't checked, where the report and videos are, and what was shared. Set
+`phase: done` in `state.md`.
 
 Append one line to the session log `.claude/work/qa-log.md` (create it if missing):
 `<date> | <ticket link> | <verdict> | <sub-bug: title (filed: link, or "to file")>` — the user asks
 for "the list of tickets and sub-bugs" at the end of a QA day; answer from this file (check the
 tracker for sub-bugs filed since: the ticket's children created today, from `get_related`; tracker
-`none`: this log is the only record).
+`none`: this log is the only record). `--automatic`: then write `$W/result.json` — the last thing the
+run writes (`modes/automatic.md`).
 
 Project facts in `$W/context-updates.md`: don't offer them after every run. When the user ends the
 session or asks, collect the `proposed` lines from every `.claude/work/*/context-updates.md` not yet

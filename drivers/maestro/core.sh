@@ -1,5 +1,6 @@
 # Commands every mobile driver has (react-native/rn.sh, ios/ios.sh, android/android.sh):
-#   status · boot · setup · needs · build · relaunch [settle-s] · inspect · shot <name> · replay
+#   status · boot · setup · needs · build · relaunch [settle-s] · inspect · shot <name> · verify · replay
+#   verify: every saved flow once, unrecorded — the fix loop's regression check in one call
 #   step '<maestro commands, \n separated>' [ac<N>-<k>-<state> | look-<x>] [settle-s]
 #   force <file> NAME=<value>… [shot <name>]   set `const|let|var|val NAME = …  // TEMPTEST` lines, relaunch, screenshot
 #   video <name> [clip-filter] · frame | jpg | publish (scripts/media.sh)
@@ -37,21 +38,33 @@ if [ -z "$APP" ] && [ "${1:-}" != publish ] && [ "${1:-}" != jpg ] && [ "${1:-}"
   echo "APP_ID missing: add a \`\`\`env block to the project context (${CONTEXT:-.claude/project-context.md}; see the skill's templates/project-context.md)"; exit 2
 fi
 OUT="$SIM_OUT"
-mkdir -p "$OUT"
+mkdir -p "$OUT" && OUT="$(cd "$OUT" && pwd)"   # absolute: drivers cd into the repo
 export ANDROID_HOME="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$HOME/Library/Android/sdk}}"
 # appended, never prepended: the user's own node/ruby/java (nvm, asdf, rbenv…) must win; these only
 # fill in what a non-interactive shell's PATH lacks
 export PATH="$PATH:/opt/homebrew/bin:/usr/local/bin:$HOME/.rbenv/shims:$HOME/.maestro/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator"
 # Android builds and Maestro need JDK 17: a registered one (-F: no silent fallback to another
 # version), else Homebrew's, else whatever JAVA_HOME the caller has
-BREW_JDK17=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home
-JDK17="$(/usr/libexec/java_home -F -v 17 2>/dev/null)" || { [ -d "$BREW_JDK17" ] && JDK17="$BREW_JDK17"; }
+# Homebrew's, Apple Silicon (/opt/homebrew) or Intel (/usr/local)
+JDK17="$(/usr/libexec/java_home -F -v 17 2>/dev/null)" || for j in /opt/homebrew /usr/local; do
+  [ -d "$j/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home" ] && { JDK17="$j/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home"; break; }
+done
 export JAVA_HOME="${JDK17:-${JAVA_HOME:-}}"
 export MAESTRO_DRIVER_STARTUP_TIMEOUT=120000
 [ -n "${DEPS+x}" ] || DEPS=()
 [ -n "${NATIVE+x}" ] || NATIVE=(. ':(exclude)*.md')
 
 hook() { declare -F "$1" >/dev/null && "$@"; return 0; }
+# Recording is on while $OUT/.recording exists: the forced-video recipe touches it (empty) across
+# calls; replay writes `replay <pid>`, and a replay that was killed hard leaves it behind — dead
+# owner = stale, removed, so later steps still save their flows.
+recording() {
+  [ -f "$OUT/.recording" ] || return 1
+  local who="" pid=""; read -r who pid < "$OUT/.recording" 2>/dev/null
+  # no pid → stale too (`kill -0` with no pid would signal our own process group and "succeed")
+  if [ "$who" = replay ] && { [ -z "$pid" ] || ! kill -0 "$pid" 2>/dev/null; }; then rm -f "$OUT/.recording"; return 1; fi
+  return 0
+}
 # The Android device: SIM_SERIAL when given; else the running emulator whose AVD is the configured
 # one; else (no AVD configured) the first emulator. Empty = none running.
 serial() {
@@ -71,6 +84,8 @@ device_id() { if [ "$PLATFORM" = android ]; then serial; else echo "$UDID"; fi; 
 STAMPS="$REPO/.claude/work/.sim"
 fp() {
   [ $# -gt 0 ] || { echo none; return; }
+  # outside a git repo there is nothing to fingerprint: never a value that could match a stamp
+  (cd "$REPO" && git rev-parse --git-dir >/dev/null 2>&1) || { echo "unknown-$RANDOM$RANDOM"; return; }
   # quotePath=false: git otherwise prints non-ASCII names quoted, and those files would be skipped
   (cd "$REPO" && { git -c core.quotePath=false ls-files -s -- "$@" ':(exclude).claude'
     git -c core.quotePath=false diff -w HEAD -- "$@" ':(exclude).claude'
@@ -99,7 +114,8 @@ resolve_ios() {
   line=$(stamped ios-device)
   if [ "${line%%$'\t'*}" = "$key" ]; then
     got=${line#*$'\t'}
-    if xcrun simctl list devices | grep -q "(${got%%$'\t'*})"; then
+    # no `grep -q` after a pipe: under pipefail its early exit SIGPIPEs xcrun → a false "gone"
+    if xcrun simctl list devices | grep -F "(${got%%$'\t'*})" >/dev/null; then
       UDID=${got%%$'\t'*}; UDID_FROM="$(printf '%s' "$got" | cut -f2- | tr '\t' ' ') (kept)"; return 0
     fi
   fi
@@ -132,11 +148,12 @@ next_clip() {
 # never the device's `adb screenrecord` (Maestro's screenshots stall ~95 s per command next to it) nor
 # Maestro's startRecording (one frame per clip, 2026-10-17).
 clip_start() {
+  CLIP=$(next_clip "$1")   # run_flow drops it when the step fails
   if [ "$PLATFORM" = android ]; then
-    next_clip "$1" > "$OUT/rec.target"; rm -f "$OUT/rec.webm"
+    echo "$CLIP" > "$OUT/rec.target"; rm -f "$OUT/rec.webm"
     adb -s "$(serial)" emu screenrecord start --fps 15 --size 540x1212 "$OUT/rec.webm" > "$OUT/rec.log" 2>&1
   else
-    nohup xcrun simctl io "$UDID" recordVideo --codec h264 --force "$(next_clip "$1")" > "$OUT/rec.log" 2>&1 &
+    nohup xcrun simctl io "$UDID" recordVideo --codec h264 --force "$CLIP" > "$OUT/rec.log" 2>&1 &
     echo $! > "$OUT/rec.pid"; sleep 1
   fi
 }
@@ -151,11 +168,15 @@ clip_stop() {
       [ "$size" -gt 0 ] && [ "$size" = "$last" ] && break
       last=$size; sleep 0.3; i=$((i+1))
     done
-    "$MEDIA" mp4 "$OUT/rec.webm" "$target" >/dev/null && rm -f "$OUT/rec.webm" || echo "video: emulator clip conversion failed"
+    "$MEDIA" mp4 "$OUT/rec.webm" "$target" >/dev/null && rm -f "$OUT/rec.webm" \
+      || { rm -f "$target" "$OUT/rec.webm"; echo "video: emulator clip conversion failed"; }
     return 0
   fi
   [ -f "$OUT/rec.pid" ] || return 0
-  local pid i=0; pid=$(cat "$OUT/rec.pid"); kill -INT "$pid" 2>/dev/null
+  local pid i=0; pid=$(cat "$OUT/rec.pid")
+  # a pid left by a killed run may belong to another process by now: only signal a recorder
+  ps -p "$pid" -o command= 2>/dev/null | grep recordVideo >/dev/null || { rm -f "$OUT/rec.pid"; return 0; }
+  kill -INT "$pid" 2>/dev/null
   # the MP4 is only valid once recordVideo has finished writing (bounded: a stale pid can't hang us)
   while kill -0 "$pid" 2>/dev/null && [ $i -lt 75 ]; do sleep 0.2; i=$((i+1)); done
   kill -0 "$pid" 2>/dev/null && kill -9 "$pid" 2>/dev/null
@@ -170,17 +191,23 @@ run_flow() {
   # One Maestro session for the whole run (scripts/maestro_session.py): the driver starts once
   # (~20 s), then each flow costs ~1 s instead of a ~30 s `maestro test`. Connect before recording
   # so the startup stays out of the video.
-  [ -f "$OUT/.recording" ] && { session warm "$(device_id)" >/dev/null; clip_start "$name"; }
+  recording && { session warm "$(device_id)" >/dev/null; clip_start "$name"; }
   session run "$(device_id)" "$flow" > "$OUT/maestro.log" 2>&1; rc=$?
   cat "$OUT/maestro.log"; echo "MAESTRO EXIT $rc"
-  if [ -f "$OUT/.recording" ]; then
-    sleep "$3"; screenshot "$OUT/$name.png" && echo "shot: $OUT/$name.png"
-  elif [ $rc -ne 0 ]; then
+  if [ $rc -ne 0 ]; then
+    # a failing step is never evidence of the state it was meant to reach — not even while recording
+    # (a replay or a forced-state recording): its shot is a fail- shot, and its clip is dropped below
     screenshot "$OUT/fail-$name.png" && echo "shot: $OUT/fail-$name.png"
+  elif recording; then
+    sleep "$3"; screenshot "$OUT/$name.png" && echo "shot: $OUT/$name.png"
   fi
   # an old failure shot of a step that passes now must not be published as a failure
   [ $rc -eq 0 ] && rm -f "$OUT/fail-$name.png"
   clip_stop
+  [ $rc -ne 0 ] && [ -n "${CLIP:-}" ] && rm -f "$CLIP"
+  # a recorder that died leaves a passing step with no clip: say so now, not when `video` finds a gap
+  [ $rc -eq 0 ] && [ -n "${CLIP:-}" ] && [ ! -s "$CLIP" ] && echo "video: no clip recorded for $name"
+  CLIP=""
   return $rc
 }
 
@@ -196,7 +223,9 @@ case "${1:-status}" in
       [ -n "$s" ] && { adb -s "$s" shell pm path "$APP" >/dev/null 2>&1 \
         && echo "app: installed on $s" || echo "app: NOT installed on $s"; }
     else
-      echo "simulator: ${UDID:-none} — ${UDID_FROM:-set IOS_DEVICE in the project context, or boot one}"
+      if [ -n "$UDID" ]; then echo "simulator: $UDID — $UDID_FROM"
+      elif [ -n "${IOS_DEVICE:-}" ]; then echo "simulator: none — IOS_DEVICE \"$IOS_DEVICE\"${IOS_RUNTIME:+ on iOS $IOS_RUNTIME} matches no simulator here (see above)"
+      else echo "simulator: none — set IOS_DEVICE in the project context, or boot one"; fi
       echo "booted:"; xcrun simctl list devices booted | grep -E '\(' || echo "  none"
       [ -n "$UDID" ] && { xcrun simctl get_app_container "$UDID" "$APP" >/dev/null 2>&1 \
         && echo "app: installed on $UDID" || echo "app: NOT installed on $UDID"; }
@@ -244,7 +273,8 @@ case "${1:-status}" in
   setup)
     [ -n "${SETUP_CMD:-}" ] || { echo "SETUP_CMD missing in project context"; exit 2; }
     hook pre_setup
-    cd "$REPO" && eval "$SETUP_CMD" > "$OUT/setup.log" 2>&1
+    # in a subshell: an `exit` inside the project's command must not end this driver silently
+    cd "$REPO" && ( eval "$SETUP_CMD" ) > "$OUT/setup.log" 2>&1
     rc=$?; tail -5 "$OUT/setup.log"; echo "SETUP EXIT $rc"
     [ $rc = 0 ] && stamp setup "$(fp ${DEPS[@]+"${DEPS[@]}"})"; exit $rc
     ;;
@@ -255,12 +285,21 @@ case "${1:-status}" in
     if [ "$PLATFORM" = android ]; then
       SERIAL=$(serial); [ -n "$SERIAL" ] || { echo "no emulator running: $DRV_NAME boot first"; exit 1; }
       hook pre_launch "$SERIAL"
-      eval "${ANDROID_BUILD_CMD:?ANDROID_BUILD_CMD missing in project context}" > "$OUT/build.log" 2>&1
+      : "${ANDROID_BUILD_CMD:?ANDROID_BUILD_CMD missing in project context}"
+      ( eval "$ANDROID_BUILD_CMD" ) > "$OUT/build.log" 2>&1
     else
       xcrun simctl boot "$UDID" 2>/dev/null
-      eval "${IOS_BUILD_CMD:?IOS_BUILD_CMD missing in project context}" > "$OUT/build.log" 2>&1
+      : "${IOS_BUILD_CMD:?IOS_BUILD_CMD missing in project context}"
+      ( eval "$IOS_BUILD_CMD" ) > "$OUT/build.log" 2>&1
     fi
-    rc=$?; tail -15 "$OUT/build.log"; echo "BUILD EXIT $rc"
+    rc=$?
+    if [ $rc -ne 0 ]; then
+      # the error lines, not just the tail: a compiler error is often far above the last lines
+      # Kotlin errors start with `e: `; Gradle puts the cause on the line after "What went wrong"
+      grep -m20 -A1 -E '^e: |error:|BUILD FAILED|What went wrong|\*\* .* FAILED' "$OUT/build.log" | grep -v '^--$'
+      echo "--- last lines:"; tail -5 "$OUT/build.log"
+    fi
+    echo "BUILD EXIT $rc (log: $OUT/build.log)"
     [ $rc = 0 ] && stamp "build-$PLATFORM-$(device_id)" "$built $(installed_id)"
     grep -q INSTALL_FAILED_UPDATE_INCOMPATIBLE "$OUT/build.log" && echo "The installed app has another \
 signature. Once, with the user's OK (it clears the app's data and login): adb uninstall $APP, \
@@ -285,26 +324,29 @@ then adb install -r ${ANDROID_APK:-<apk path>}"
     ;;
   inspect)
     # Read the screen once, then tap by id/text from it — no guessing and retrying.
-    session inspect "$(device_id)"
+    # one line per element a selector can use; the full JSON stays in $OUT/inspect.json
+    session inspect "$(device_id)" > "$OUT/inspect.json"; rc=$?
+    [ $rc -eq 0 ] || { cat "$OUT/inspect.json"; exit $rc; }
+    python3 -I "$CORE/compact_inspect.py" "$OUT/inspect.json" || cat "$OUT/inspect.json"
     ;;
   force)
     # force <file> NAME=<value>… [shot <name>]: one call per forced state. Sets each
     # `const|let|var|val NAME = …  // TEMPTEST …` line in <file> (add those lines first; a type
     # annotation and a trailing `;` are fine), then relaunches — after a rebuild when the driver's
     # code isn't reloaded live — and screenshots.
-    f="$2"; shift 2; shotname=""
+    f="${2:?usage: force <file> NAME=<value>… [shot <name>]}"; shift 2; shotname=""
     [ -f "$f" ] || { echo "force: no file $f"; exit 1; }
     while [ $# -gt 0 ]; do
-      if [ "$1" = shot ]; then shotname="$2"; shift 2; continue; fi
+      if [ "$1" = shot ]; then shotname="${2:?usage: force <file> NAME=<value>… shot <name>}"; shift 2; continue; fi
       FORCE_KV="$1" python3 - "$f" <<'PY' || exit 1
 import os, re, sys
 name, value = os.environ["FORCE_KV"].split("=", 1)
-p = sys.argv[1]; s = open(p).read()
-pat = re.compile(r"^(\s*(?:const|let|var|val) %s(?:\s*:\s*[^=]+?)?\s*=\s*).*?(;?\s*//\s*TEMPTEST.*)$" % re.escape(name), re.M)
+p = sys.argv[1]; s = open(p, newline="").read()  # newline="": a CRLF file stays CRLF
+pat = re.compile(r"^(\s*(?:(?:export|public|private|internal|static|final|override)\s+)*(?:const|let|var|val) %s(?:\s*:\s*.+?)?\s*=(?![>=])\s*).*?(;?\s*//\s*TEMPTEST.*)$" % re.escape(name), re.M)
 s2, n = pat.subn(lambda m: m.group(1) + value + m.group(2), s)
 if n != 1:
     sys.exit("force: expected one `const|let|var|val %s = …  // TEMPTEST` line in %s, found %d" % (name, p, n))
-open(p, "w").write(s2); print("force: %s = %s" % (name, value))
+open(p, "w", newline="").write(s2); print("force: %s = %s" % (name, value))
 PY
       shift
     done
@@ -326,10 +368,26 @@ PY
     printf 'appId: %s\n---\n- launchApp:\n    stopApp: false\n- waitForAnimationToEnd\n%s\n' "$APP" "$body" > "$OUT/flow.yaml"
     run_flow "$OUT/flow.yaml" "${3:-}" "${4:-2}"; rc=$?
     # -forced steps depend on temporary code that is gone by the replay: never saved
-    if [ $rc -eq 0 ] && [[ "${3:-}" == ac* ]] && [[ "${3:-}" != *-forced ]] && [ ! -f "$OUT/.recording" ]; then
+    if [ $rc -eq 0 ] && [[ "${3:-}" == ac* ]] && [[ "${3:-}" != *-forced ]] && ! recording; then
       mkdir -p "$OUT/flows"; cp "$OUT/flow.yaml" "$OUT/flows/$3.yaml"; echo "saved: flows/$3.yaml"
     fi
     exit $rc
+    ;;
+  verify)
+    # verify: every saved flow once, in AC order — no recording, no evidence touched, nothing saved.
+    # The fix loop's "re-test everything" in one call (relaunch first).
+    flows=(); while IFS= read -r f; do flows+=("$f"); done < <(ls "$OUT/flows"/*.yaml 2>/dev/null | sort -V)
+    [ ${#flows[@]} -gt 0 ] || { echo "no saved flows in $OUT/flows"; exit 1; }
+    failed=""
+    for f in "${flows[@]}"; do
+      n=$(basename "$f" .yaml); echo "== $n"
+      run_flow "$f" "$n" 0 > "$OUT/.verify.log" 2>&1; rc=$?
+      # a pass is one line; a failure shows its reason whatever its wording ("Failed to run flow",
+      # "session error", an assertion) — the log is overwritten by the next flow
+      if [ $rc -eq 0 ]; then grep -E 'COMPLETED' "$OUT/.verify.log"; else grep -v '^$' "$OUT/.verify.log" | head -6; fi
+      [ $rc -eq 0 ] || failed="$failed $n"
+    done
+    [ -z "$failed" ] && echo "VERIFY: all ${#flows[@]} flows passed" || { echo "VERIFY FAILED:$failed"; exit 1; }
     ;;
   replay)
     # replay: the evidence run. Re-runs every saved flow in AC order (sort -V), recorded, one
@@ -342,10 +400,10 @@ PY
     trap 'exit 130' INT TERM
     # this run's evidence only: shots and videos of an earlier replay (or of a deleted flow) would be
     # published with it. Forced shots (`*-forced*`) can't be re-made, so they stay.
-    for f in "$OUT"/ac*.png "$OUT"/ac[0-9]*.mp4 "$OUT/workflow.mp4"; do
+    for f in "$OUT"/ac*.png "$OUT"/ac*.jpg "$OUT"/ac[0-9]*.mp4 "$OUT/workflow.mp4"; do
       case "$f" in *-forced*) ;; *) rm -f "$f" ;; esac
     done
-    rm -rf "$OUT/clips"; touch "$OUT/.recording"; failed=""
+    rm -rf "$OUT/clips"; echo "replay $$" > "$OUT/.recording"; failed=""
     for f in "${flows[@]}"; do
       n=$(basename "$f" .yaml); echo "== $n"
       run_flow "$f" "$n" 2 || failed="$failed $n"

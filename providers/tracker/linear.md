@@ -57,7 +57,9 @@ Attachments are links (Figma, Loom, GitHub, Docs): Figma → the design provider
 Linear has no free-form custom fields; `done_fields` maps to one of:
 - label: MCP "update issue" with the label added / API `issueUpdate(id, input: {labelIds: [...]})`
   (keep the existing ones — the list replaces);
-- status: see `transition`;
+- status: set it at Ship like any other done field — listing it in `done_fields` is the user
+  asking for that transition (the `transition` steps below); any other status change stays
+  "only when the user asks";
 - a link (e.g. the demo video): MCP "create attachment" or a comment with the link / API
   `attachmentLinkURL(issueId, url, title)`.
 Read it back with `get_ticket`. Already set to a real value → ask before replacing.

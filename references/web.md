@@ -14,7 +14,9 @@ survive between tool calls; the driver refuses to run without it). `web.sh help`
 | log in once, by hand, in a real window | `web.sh login` — the user logs in, closes the window; the session is saved to `auth.json` and reused by every step. Passwords never pass through the skill |
 | roles and names on a page, to write locators | `web.sh inspect [path]` — the accessibility tree (`- button "Add item"`) |
 | one test step | `web.sh step '<playwright test body>' [ac<N>-<k>-<state> \| look-<x>]` |
+| a look at a state a step reached (visual check) | end that `look-<state>` step with `await page.screenshot({ path: '<WEB_OUT>/look-<state>.png' })` — `shot` opens a fresh page at a path |
 | page screenshot | `web.sh shot <name> [path]` |
+| re-check every saved flow (the fix loop) | `web.sh verify` — one call, no recording |
 | evidence run | `web.sh replay` |
 | join the step clips into one video | `web.sh video <name> [clip-filter]` |
 

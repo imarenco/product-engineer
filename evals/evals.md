@@ -5,7 +5,9 @@ snapshot of the previous version (copy the skill folder first), in parallel suba
 `isolation: "worktree"` and its skill copy inside that worktree (runs check out branches and edit the
 context file, so they can't share one tree), and copy the current context file (`.claude/project-context.md`, or
 `AGENTS.md` with its `## Project context`) into each worktree, since the committed one may not have it — stopping each
-at the plan gate (or at the QA report for `--test-only`). Grade the two `$W` folders with the
+where the scenario says (default: the plan gate; the QA report for `--test-only`). Scenario 10
+(`--automatic`) pushes and opens a real PR: run it only against a fork or a throwaway remote and
+tracker. Grade the two `$W` folders with the
 assertions; keep the change only if it doesn't lose any assertion the old version passed.
 
 ## Scenarios
@@ -19,6 +21,7 @@ The surface flags only say where the ticket is developed and tested; each one ro
 | `--android` | React Native: `drivers/react-native/rn.sh` with `SIM_PLATFORM=android`; native: `drivers/android/android.sh` (Maestro) | `$W/shots/android/` |
 | `--web` | `drivers/web/web.sh` (Playwright) | `$W/shots/web/` |
 | `--backend` | `drivers/backend/backend.sh` (HTTP / GraphQL, SQL, queues and other CLIs) | `$W/shots/backend/` |
+
 Flags combine (`--ios --android`, same as `--both`; `--web --backend`; …). No flag → Preflight asks;
 `--no-sim` → unit tests only, no driver.
 
@@ -31,7 +34,7 @@ Flags combine (`--ios --android`, same as `--both`; `--web --backend`; …). No 
 | 5 | a backend ticket in a service repo with `--backend` (stop at the gate) | no UI: design `none`, API/SQL/queue test rows, reproduction step for a bug, non-local target confirmed |
 | 6 | `/product-engineer <UI-TICKET> --android` (stop at the gate) | same ticket on the other platform: emulator boot, Android coordinates (px), no iOS work |
 | 7 | `/product-engineer <WEB-TICKET> --web` (stop at the gate) | web UI: Playwright `expect` rows, local app start or a deployed URL, saved login |
-| 8 | `/product-engineer <UI-TICKET> --ios --android` | both platforms in one run: every UI AC verified and recorded on each |
+| 8 | `/product-engineer <UI-TICKET> --ios --android` (stop after Evidence) | both platforms in one run: every UI AC verified and recorded on each |
 | 9 | `/product-engineer <NATIVE-TICKET> --ios` in a native app (`MOBILE_DRIVER=native`; stop after Test) | `ios.sh`: a build after every code change, state probed with `defaults` |
 | 10 | `/product-engineer <UI-TICKET> --ios --automatic` (headless, no answers given) | a pipeline run: no question asked, a PR at the end, `result.json` written |
 
@@ -42,7 +45,8 @@ Flags combine (`--ios --android`, same as `--both`; `--web --backend`; …). No 
   alone is raised as a question, not silently implemented or dropped.
 - `plan.md`: steps are a checklist with AC tags; coverage table covers every AC both ways with a %;
   review focus present; project-context check present; nothing coded before approval.
-- Test plan rows name the input that would make each assertion fail; no `optional: true` anywhere.
+- Test plan rows name the input that would make each assertion fail; no `optional: true` on an assertion
+  (the `extendedWaitUntil … optional` wait is allowed).
 - Scenario 3: `git status` shows no product-code change at the end; a QA report with a derived verdict.
 - Scenario 4: `.claude/project-context.md` exists (or the AGENTS.md section, when the user chose it at
   the gitignore question) with the template's sections; unknowns asked, not invented.
@@ -56,6 +60,8 @@ Flags combine (`--ios --android`, same as `--both`; `--web --backend`; …). No 
 - Scenario 8: `state.md` § Verdicts has an iOS and an Android entry per UI AC; an AC passes only when it
   passes on both; `$W/shots/ios/flows` and `$W/shots/android/flows` each hold a flow per AC step.
 - Scenario 9: every code edit is followed by `needs` and a `build` before the next re-test; no `metro`.
+- Fix-loop re-tests are one `relaunch` + `verify` per mobile/web surface (backend: `replay`), not one
+  `step` per saved flow.
 - Build scenarios: a work branch named per `$CTX` § Git & PR (default `<branch_prefix>/<KEY>-<slug>`)
   exists from Preflight; `state.md` starts with the `SKILL=` / `W=` / `CTX=` lines and has `mode:`;
   scenario 3: work dir is `<TICKET>-qa`, no branch created.
@@ -81,9 +87,10 @@ Flags combine (`--ios --android`, same as `--both`; `--web --backend`; …). No 
 - Scenario 10: no question asked; `analysis.md` / `state.md` log each `auto:` decision and the PR lists them;
   `state.md` has `approved: automatic`; a PASS opens a ready PR, CONCERNS/FAIL a draft one; no shared-env
   write without `automatic_shared_writes: yes`; `$W/result.json` has every key, `status` and `pr` filled.
-- An AC accepted at Test's 3-attempt cap is in `state.md` § Waivers, the verdict is WAIVED, and Ship
-  asks no second waiver question.
+- Re-running a shipped ticket (with or without `--automatic`) reuses its branch and PR: no second
+  branch or PR, the developer's pushed commits kept, and the gate baseline taken on the merge-base.
+- An AC accepted at Test's 3-attempt cap is in `state.md` § Waivers, the verdict is WAIVED (or CONCERNS
+  listing the waiver, when a concern also applies), and Ship asks no second waiver question.
 - Mobile steps go through the Maestro session (`MAESTRO EXIT` lines from the driver, steps run by
   `maestro_session.py`, no per-step `maestro test`); forced states use the driver's `force`; React Native: `index.js` has no
-  `TEMPTEST quiet` line at the leftover check or at Ship. Native: every code change is followed by
-  `needs` and a `build` before the next re-test.
+  `TEMPTEST quiet` line at the leftover check or at Ship.

@@ -8,6 +8,8 @@ case "${1:-}" in
   fingerprint) CTXF="${2:-}" ;;
   *) sed -n '2,4p' "$0"; exit 2 ;;
 esac
+# the context file by its real path: through a symlink (/tmp → /private/tmp) the root prefix wouldn't match
+if [ -n "${CTXF:-}" ] && [ -e "$CTXF" ]; then CTXF="$(cd "$(dirname "$CTXF")" && pwd -P)/$(basename "$CTXF")"; fi
 ROOT="$(git rev-parse --show-toplevel)" || exit 2
 cd "$ROOT" || exit 2
 CTXF="${CTXF#"$ROOT"/}"
@@ -15,13 +17,14 @@ CTXF="${CTXF#"$ROOT"/}"
 files() {
   # quotePath=false: git otherwise prints non-ASCII names quoted, and those files would be skipped
   { git -c core.quotePath=false diff --name-only HEAD; git -c core.quotePath=false ls-files --others --exclude-standard; } |
-    grep -v -e '^\.claude/' | grep -vxF -- "${CTXF:-/}" | sort -u
+    # `|| true`: no changed files (a clean tree, e.g. the Preflight baseline) is an empty list, not a failure
+    { grep -v -e '^\.claude/' || true; } | { grep -vxF -- "${CTXF:-/}" || true; } | sort -u
 }
 
 if [ "$1" = leftover ]; then
   hits=$(files | while IFS= read -r f; do [ -f "$f" ] && grep -nHE "TEMPTEST|DEBUG-$TICKET" -- "$f"; done)
   if [ -n "$hits" ]; then echo "$hits"; echo "LEFTOVER: remove the lines above"; rc=1; else echo "leftover: none"; rc=0; fi
-  echo "-- git status"; git status --short
+  echo "-- git status"; git -c core.quotePath=false status --short
   exit $rc
 fi
 
@@ -29,7 +32,8 @@ fi
 # behaviour the gates check, so it must not make gate results stale. Every other line counts.
 { git rev-parse HEAD; files | while IFS= read -r f; do
     if [ -f "$f" ]; then
-      h=$({ grep -v '// TEMPTEST quiet' -- "$f" || true; } | git hash-object --stdin)
+      # sed, not grep -v: grep adds a missing final newline, and the hash would never match HEAD
+      h=$(sed '/\/\/ TEMPTEST quiet/d' "$f" | git hash-object --stdin)
       # changed only by the quiet line = unchanged: leave it out, as if it weren't in the diff
       [ "$h" = "$(git rev-parse -q --verify "HEAD:$f" 2>/dev/null)" ] || echo "$f $h"
     else echo "$f deleted"; fi; done; } |

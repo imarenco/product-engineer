@@ -21,7 +21,7 @@ usage() { sed -n '2,/^set -uo/p' "$0" | sed '$d'; }
 load_context
 [ -n "${BACKEND_OUT:-}" ] || { echo "set BACKEND_OUT=<evidence dir> on this call: BACKEND_OUT=… $0 $1"; exit 2; }
 OUT="$BACKEND_OUT"
-mkdir -p "$OUT/flows"
+mkdir -p "$OUT/flows" && OUT="$(cd "$OUT" && pwd)"   # absolute: a relative dir breaks once a step cd's
 REPLAYING="${BACKEND_REPLAYING:-0}"
 RESET_CMD="${BACKEND_RESET_CMD:-${API_RESET_CMD:-}}"   # API_RESET_CMD: the name before the api surface became backend
 
@@ -31,11 +31,21 @@ save_flow() {
   shift; { printf 'backend.sh'; printf ' %q' "$@"; echo; } > "$OUT/flows/$NAME.sh"; echo "saved: flows/$NAME.sh"
 }
 
+need() { [ "$1" -ge "$2" ] || { echo "usage: backend.sh $3"; exit 2; }; }
+
 verdict() {
   # verdict <ok 0|1> <detail>: appends to the transcript and prints PASS/FAIL
   local res=PASS; [ "$1" = 1 ] || res=FAIL
   printf '\nResult: %s %s\n' "$res" "${2:-}" >> "$OUT/$NAME.txt"
-  echo "$res $NAME ${2:-}"; [ "$res" = PASS ]
+  echo "$res $NAME ${2:-}"
+  if [ "$res" = FAIL ]; then
+    # enough to diagnose without opening the transcript: its path and the start of what came back
+    echo "  transcript: $OUT/$NAME.txt"
+    # awk, not sed: it ends every line, even a body with no final newline
+    if [ -s "$OUT/.body" ]; then head -c 600 "$OUT/.body" | head -5 | awk '{print "  | " $0}'
+    elif [ -n "${LAST_OUT:-}" ]; then printf '%s\n' "$LAST_OUT" | head -5 | awk '{print "  | " $0}'; fi
+  fi
+  [ "$res" = PASS ]
 }
 
 http() {
@@ -48,21 +58,42 @@ http() {
   local hdr=""
   if [ -n "${API_AUTH_CMD:-}" ]; then hdr=$(eval "$API_AUTH_CMD") || return 1; fi
   # the auth header reaches curl as config on stdin, so the token never shows in `ps` or a transcript
+  # A server that is down or too slow is HTTP 000, reported by assert_json — not an auth failure:
+  # only the auth command's failure above returns 1. --max-time: a stuck API must not hang the step.
   STATUS=$({ [ -z "$hdr" ] || printf '%s\n' "$hdr" | sed 's/\\/\\\\/g; s/"/\\"/g; s/^/header = "/; s/$/"/'; } |
-    curl -s -K - -o "$OUT/.body" -w '%{http_code}' -X "$1" ${data[@]+"${data[@]}"} "$2")
+    curl -s -K - --max-time "${API_TIMEOUT:-60}" -o "$OUT/.body" -w '%{http_code}' -X "$1" ${data[@]+"${data[@]}"} "$2")
+  CURL_RC=$?
+  return 0
+}
+
+# HTTP 000 = no response at all: say why (curl's exit code), a timeout isn't a server that's down
+no_response() {
+  case "${CURL_RC:-0}" in
+    28) echo "no response: timed out after ${API_TIMEOUT:-60}s" ;;
+    7) echo "no response: connection refused" ;;
+    6) echo "no response: host not found" ;;
+    *) echo "no response: curl exit ${CURL_RC:-?}" ;;
+  esac
 }
 
 record_response() {
-  printf 'Status: %s\n\n' "$STATUS" >> "$OUT/$NAME.txt"
-  (jq . "$OUT/.body" || cat "$OUT/.body") 2>/dev/null | head -200 >> "$OUT/$NAME.txt"
+  printf 'Status: %s%s\n\n' "$STATUS" "$([ "$STATUS" = 000 ] && echo " ($(no_response))")" >> "$OUT/$NAME.txt"
+  (jq . "$OUT/.body" || cat "$OUT/.body") 2>/dev/null > "$OUT/.pretty"
+  head -200 "$OUT/.pretty" >> "$OUT/$NAME.txt"
+  n=$(wc -l < "$OUT/.pretty" | tr -d ' '); [ "$n" -gt 200 ] && printf '… truncated: %s lines in all\n' "$n" >> "$OUT/$NAME.txt"
+  rm -f "$OUT/.pretty"
 }
 
 assert_json() {
   # assert_json <jq-expr>: passes on HTTP 2xx and, when given, the expression being true
+  [ "$STATUS" = 000 ] && { verdict 0 "($(no_response))"; return 1; }
   [[ "$STATUS" == 2* ]] || { verdict 0 "(HTTP $STATUS)"; return 1; }
   [ -z "${1:-}" ] && { verdict 1; return 0; }
   printf '\nAssert: %s\n' "$1" >> "$OUT/$NAME.txt"
-  [ "$(jq -r "$1" "$OUT/.body" 2>/dev/null)" = true ] && verdict 1 || { verdict 0 "(assertion false)"; return 1; }
+  local v jrc; v=$(jq -r "$1" "$OUT/.body" 2>"$OUT/.jqerr"); jrc=$?
+  # a broken expression is not a false assertion: say which
+  [ $jrc -eq 0 ] || { verdict 0 "(jq error: $(head -1 "$OUT/.jqerr"))"; return 1; }
+  [ "$v" = true ] && verdict 1 || { verdict 0 "(assertion false)"; return 1; }
 }
 
 assert_text() {
@@ -86,13 +117,17 @@ case "${1:-status}" in
     command -v jq >/dev/null || echo "jq: missing"
     ;;
   call)
-    NAME="$2"; : "${API_URL:?API_URL missing in project context}"
+    need $# 4 "call <name> <METHOD> <path> [json-body] [jq-assert]"; NAME="$2"
+    : "${API_URL:?API_URL missing in project context}"
+    # a jq assertion put in the body slot would be sent as the body and the step would pass unasserted
+    [ -z "${5:-}" ] || jq . >/dev/null 2>&1 <<<"$5" || { echo "body is not valid JSON: $5 (the jq assertion goes after the body; no body → '')"; exit 2; }
     printf '%s %s\n' "$3" "$4" > "$OUT/$NAME.txt"; [ -n "${5:-}" ] && printf 'Body: %s\n' "$5" >> "$OUT/$NAME.txt"
     http "$3" "$API_URL$4" "${5:-}" || { verdict 0 "(API_AUTH_CMD failed)"; exit 1; }; record_response
     assert_json "${6:-}" && save_flow "$NAME" call "${@:2}"
     ;;
   gql)
-    NAME="$2"; : "${API_URL:?API_URL missing in project context}"
+    need $# 3 "gql <name> '<query>' [variables-json] [jq-assert]"; NAME="$2"
+    : "${API_URL:?API_URL missing in project context}"
     body=$(jq -nc --arg q "$3" --argjson v "${4:-null}" '{query:$q, variables:$v}') || { echo "variables are not valid JSON: ${4:-}"; exit 2; }
     printf 'POST %s (GraphQL)\n%s\nVariables: %s\n' "${API_GRAPHQL_PATH:-/graphql}" "$3" "${4:-null}" > "$OUT/$NAME.txt"
     http POST "$API_URL${API_GRAPHQL_PATH:-/graphql}" "$body" || { verdict 0 "(API_AUTH_CMD failed)"; exit 1; }; record_response
@@ -101,18 +136,21 @@ case "${1:-status}" in
     assert_json "${5:-}" && save_flow "$NAME" gql "${@:2}"
     ;;
   sql)
-    NAME="$2"; : "${DB_CMD:?DB_CMD missing in project context}"
+    need $# 3 "sql <name> '<query>' [regex-assert]"; NAME="$2"
+    : "${DB_CMD:?DB_CMD missing in project context}"
     printf 'SQL: %s\n\n' "$3" > "$OUT/$NAME.txt"
-    out=$(printf '%s\n' "$3" | eval "$DB_CMD" 2>&1); rc=$?
+    rm -f "$OUT/.body"; out=$(printf '%s\n' "$3" | eval "$DB_CMD" 2>&1); rc=$?; LAST_OUT="$out"
     printf '%s\n' "$out" | head -200 >> "$OUT/$NAME.txt"
+    n=$(printf '%s\n' "$out" | wc -l | tr -d ' '); [ "$n" -gt 200 ] && printf '… truncated: %s lines in all\n' "$n" >> "$OUT/$NAME.txt"
     assert_text "$rc" "$out" "${4:-}" && save_flow "$NAME" sql "${@:2}"
     ;;
   cmd)
     # the command is written to the transcript: secrets come from env or a token command, never inline
-    NAME="$2"; : "${3:?usage: backend.sh cmd <name> '<command>' [regex-assert]}"
+    need $# 3 "cmd <name> '<command>' [regex-assert]"; NAME="$2"
     printf 'Command: %s\n\n' "$3" > "$OUT/$NAME.txt"
-    out=$(cd "$REPO" && eval "$3" 2>&1); rc=$?
+    rm -f "$OUT/.body"; out=$(cd "$REPO" && eval "$3" 2>&1); rc=$?; LAST_OUT="$out"
     printf '%s\n' "$out" | head -200 >> "$OUT/$NAME.txt"
+    n=$(printf '%s\n' "$out" | wc -l | tr -d ' '); [ "$n" -gt 200 ] && printf '… truncated: %s lines in all\n' "$n" >> "$OUT/$NAME.txt"
     assert_text "$rc" "$out" "${4:-}" && save_flow "$NAME" cmd "${@:2}"
     ;;
   replay)

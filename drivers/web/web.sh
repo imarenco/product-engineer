@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Web test surface: drive a browser with Playwright for AC verification, one step per call.
-# Usage: web.sh <help|status|setup|start|login|inspect|step|replay|shot|video> [...]
+# Usage: web.sh <help|status|setup|start|login|inspect|step|verify|replay|shot|video> [...]
+#   verify           re-run every saved flow once, unrecorded (the fix loop's regression check)
 #   step '<playwright test body>' [ac<N>-<k>-<state> | look-<x>]   body gets `page`, `expect`, `baseURL`
 #     an uncaught page error fails the step (call allowPageErrors() in the body when the AC expects one);
 #     console errors and HTTP 5xx are listed, not failed
@@ -18,7 +19,7 @@ usage() { sed -n '2,/^set -uo/p' "$0" | sed '$d'; }
 load_context
 [ -n "${WEB_OUT:-}" ] || { echo "set WEB_OUT=<evidence dir> on this call: WEB_OUT=… $0 $1"; exit 2; }
 OUT="$WEB_OUT"
-mkdir -p "$OUT"
+mkdir -p "$OUT" && OUT="$(cd "$OUT" && pwd)"   # absolute: Playwright resolves config paths from the config's folder
 # Pinned so every machine runs the same browser build (Chromium 1194); `setup` downloads it once.
 PW_VERSION=1.56.1
 DRV="$HOME/.cache/product-engineer/web"
@@ -89,14 +90,17 @@ run_spec() {
   WEB_ERRORS_FILE="$OUT/page-errors.log" WEB_HOLD_MS=$([ "$3" = 1 ] && echo 1500 || echo 0) \
     "$PW" test -c "$OUT/playwright.config.mjs" > "$OUT/run.log" 2>&1
   local rc=$?
-  grep -E "passed|failed|Error:|expect\(|No tests found" "$OUT/run.log" | head -6
+  # no ANSI codes, no results/ paths; the failing locator and source line when there is one
+  sed $'s/\x1b\\[[0-9;]*[A-Za-z]//g' "$OUT/run.log" \
+    | grep -E "[0-9]+ passed|[0-9]+ failed|Error:|waiting for|^ *> *[0-9]+ \||No tests found" | grep -v '/results/' | head -10
+  [ $rc -ne 0 ] && echo "log: $OUT/run.log"
   if [ -s "$OUT/page-errors.log" ]; then
     mv "$OUT/page-errors.log" "$OUT/${name}-errors.log"
     echo "page errors ($OUT/${name}-errors.log):"; head -5 "$OUT/${name}-errors.log"
   fi
   echo "PLAYWRIGHT EXIT $rc"
   local shot; shot=$(find "$OUT/results" -name '*.png' 2>/dev/null | sort | tail -1)
-  if [ "$3" = 1 ]; then
+  if [ "$3" = 1 ] && [ $rc -eq 0 ]; then
     [ -n "$shot" ] && cp "$shot" "$OUT/$name.png" && echo "shot: $OUT/$name.png"
     local webm; webm=$(find "$OUT/results" -name '*.webm' 2>/dev/null | head -1)
     if [ -n "$webm" ]; then
@@ -105,6 +109,7 @@ run_spec() {
       "$MEDIA" mp4 "$webm" "$OUT/clips/$n-$name.mp4" >/dev/null || { echo "video: mp4 conversion failed"; rc=1; }
     fi
   elif [ $rc -ne 0 ] && [ -n "$shot" ]; then
+    # a failing recorded step (a replay regression) is a fail- shot, and gets no clip
     cp "$shot" "$OUT/fail-$name.png" && echo "shot: $OUT/fail-$name.png"
   fi
   [ $rc -eq 0 ] && rm -f "$OUT/fail-$name.png"
@@ -153,10 +158,30 @@ case "${1:-status}" in
     fi
     exit $rc
     ;;
+  verify)
+    # verify: every saved flow once, in AC order — no recording, no evidence touched. The fix loop's
+    # "re-test everything" in one call.
+    flows=(); while IFS= read -r f; do flows+=("$f"); done < <(ls "$OUT/flows"/*.spec.mjs 2>/dev/null | sort -V)
+    [ ${#flows[@]} -gt 0 ] || { echo "no saved flows in $OUT/flows"; exit 1; }
+    failed=""
+    for f in "${flows[@]}"; do
+      n=$(basename "$f" .spec.mjs); echo "== $n"
+      # each failing flow keeps its own log: run.log is overwritten by the next flow
+      run_spec "$f" "$n" 0 > "$OUT/.verify.out" 2>&1; rc=$?
+      sed "s|log: $OUT/run.log|log: $OUT/$n-run.log|" "$OUT/.verify.out"
+      if [ $rc -ne 0 ]; then cp "$OUT/run.log" "$OUT/$n-run.log"; failed="$failed $n"; fi
+    done
+    [ -z "$failed" ] && echo "VERIFY: all ${#flows[@]} flows passed" || { echo "VERIFY FAILED:$failed"; exit 1; }
+    ;;
   replay)
     # evidence run: every saved flow in AC order, recorded (Playwright video -> mp4) + final screenshot
     flows=(); while IFS= read -r f; do flows+=("$f"); done < <(ls "$OUT/flows"/*.spec.mjs 2>/dev/null | sort -V)
     [ ${#flows[@]} -gt 0 ] || { echo "no saved flows in $OUT/flows"; exit 1; }
+    # this run's evidence only: shots and videos of an earlier replay (or of a deleted flow) would be
+    # published with it. Forced shots (`*-forced*`) can't be re-made, so they stay.
+    for f in "$OUT"/ac*.png "$OUT"/ac*.jpg "$OUT"/ac[0-9]*.mp4 "$OUT/workflow.mp4"; do
+      case "$f" in *-forced*) ;; *) rm -f "$f" ;; esac
+    done
     rm -rf "$OUT/clips"; failed=""
     for f in "${flows[@]}"; do
       n=$(basename "$f" .spec.mjs); echo "== $n"
@@ -182,8 +207,12 @@ case "${1:-status}" in
     # roles and names getByRole needs, so selectors come from the page instead of guesses
     need_url; [ -x "$PW" ] || "$0" setup; rm -f "$OUT/inspect.txt"
     spec "$OUT/inspect.spec.mjs" "inspect" "allowPageErrors();\nawait page.goto('$(js "${2:-/}")');\nawait page.waitForLoadState('networkidle');\nfs.writeFileSync('$(js "$OUT/inspect.txt")', await page.locator('body').ariaSnapshot());"
-    run_spec "$OUT/inspect.spec.mjs" "inspect" 0 | grep -v 'PLAYWRIGHT EXIT 0'
-    [ -s "$OUT/inspect.txt" ] && { head -200 "$OUT/inspect.txt"; echo; } || { echo "inspect failed, see $OUT/run.log"; exit 1; }
+    run_spec "$OUT/inspect.spec.mjs" "inspect" 0 | grep -vE 'PLAYWRIGHT EXIT 0|^ *[0-9]+ passed'
+    [ -s "$OUT/inspect.txt" ] || { echo "inspect failed, see $OUT/run.log"; exit 1; }
+    head -200 "$OUT/inspect.txt"; echo
+    # awk counts a last line without a newline (ariaSnapshot ends without one); wc -l doesn't
+    n=$(awk 'END{print NR}' "$OUT/inspect.txt")
+    if [ "$n" -gt 200 ]; then echo "… $((n - 200)) more lines: $OUT/inspect.txt"; fi
     ;;
   video)
     clips=(); while IFS= read -r c; do clips+=("$c"); done < <(ls "$OUT/clips"/*.mp4 2>/dev/null | sort -V | grep -- "${3:-}")

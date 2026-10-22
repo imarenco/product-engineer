@@ -14,7 +14,7 @@ provider: figma           ← loads providers/design/figma.md
 <its config: file keys, how links look, design → code mapping, …>
 ```
 
-Preflight step 2 loads both provider files; later phases use them. Its config keys are listed at the top of each provider file; a key the context doesn't give →
+Preflight step 2 loads the tracker provider, Phase 2 (Design) the design provider; later phases use them. Its config keys are listed at the top of each provider file; a key the context doesn't give →
 ask the user once and write it into the context (logged in `$W/context-updates.md`). A provider the skill doesn't have → read the closest
 one as a model, do the same operations with the tool the user names, and offer to save it as a new
 provider file.

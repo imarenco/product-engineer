@@ -10,7 +10,7 @@ else the § Project context of `AGENTS.md` / `CLAUDE.md`; § Test surfaces). Pas
 
 | Need | Command |
 |---|---|
-| URL reachable, auth, DB and reset configured | `backend.sh status` |
+| URL reachable, auth, DB and reset configured | `backend.sh status` (requests time out after `API_TIMEOUT` seconds, default 60) |
 | REST call + assertion | `backend.sh call <name> <METHOD> <path> [json-body] [jq-assert]` |
 | GraphQL + assertion | `backend.sh gql <name> '<query>' [variables-json] [jq-assert]` |
 | database check | `backend.sh sql <name> '<SQL>' [regex-assert]` |

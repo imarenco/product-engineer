@@ -33,8 +33,8 @@ case "${1:-status}" in
   setup)
     # npm ci fails with ENOTEMPTY while a Gradle daemon (e.g. the IDE's) holds files in node_modules.
     # Stop the daemons only then — through the project's own wrapper — and retry once.
-    (core setup) && exit 0
-    grep -q ENOTEMPTY "$OUT/setup.log" 2>/dev/null && [ -x "$REPO/android/gradlew" ] || exit 1
+    (core setup); rc=$?; [ $rc = 0 ] && exit 0
+    grep -q ENOTEMPTY "$OUT/setup.log" 2>/dev/null && [ -x "$REPO/android/gradlew" ] || exit $rc
     echo "setup: ENOTEMPTY — stopping Gradle daemons (./gradlew --stop) and retrying"
     (cd "$REPO/android" && ./gradlew --stop >/dev/null 2>&1)
     core setup

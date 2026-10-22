@@ -1,7 +1,10 @@
 # Sourced by the drivers: finds the project context and loads its ```env block.
 # The context is a dedicated .claude/project-context.md if the repo has one, else the "## Project context"
 # section of AGENTS.md / CLAUDE.md. PROJECT_CONTEXT overrides the location.
-REPO="$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null || pwd)"
+# the repo of the current folder; outside one, the repo PROJECT_CONTEXT lives in; else the folder itself
+REPO="$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null)" \
+  || REPO="$( [ -n "${PROJECT_CONTEXT:-}" ] && git -C "$(dirname "$PROJECT_CONTEXT")" rev-parse --show-toplevel 2>/dev/null )" \
+  || REPO="$(pwd)"
 CONTEXT="${PROJECT_CONTEXT:-}"
 if [ -z "$CONTEXT" ]; then
   # same order as SKILL.md: the dedicated file, else the "## Project context" section of AGENTS.md / CLAUDE.md

@@ -19,14 +19,15 @@ All three share one core (`drivers/maestro/core.sh`):
 | Need | Command |
 |---|---|
 | devices, app install, Maestro (+ bundler for rn.sh) | `$D status` |
-| boot the simulator / emulator | `$D boot` (Android: needs `ANDROID_AVD`; bounded wait, fails if the emulator dies) |
+| boot the simulator / emulator | `$D boot` (Android: `ANDROID_AVD`, else the first AVD; bounded wait, fails if the emulator dies) |
 | install dependencies (project's SETUP_CMD) | `$D setup` |
 | which slow steps are needed (setup / build) | `$D needs` — skip what says "not needed" |
 | build + install (project's IOS/ANDROID_BUILD_CMD) | `$D build` (run in background; records the code fingerprint for `needs`) |
 | restart the app | `$D relaunch [seconds]` — exits non-zero when the app didn't launch, so `relaunch && replay` stops |
 | one test step (a whole state change: act + assert) | `$D step '<maestro commands>' [ac<N>-<k>-<state> \| look-<x>] [settle]` — one long-lived Maestro session: ~20 s to connect once, then ~1–4 s per step |
-| read the screen (ids, texts, bounds) before tapping | `$D inspect` (~1 s) |
+| read the screen (ids, texts, bounds) before tapping | `$D inspect` (~1 s) — one line per element a selector can use: `id=<test id> "<text>" a11y="…" [bounds]`; the full JSON is in `$SIM_OUT/inspect.json` |
 | one forced state: set values, relaunch, screenshot | `$D force <file> NAME=<value>… [shot <name>]` — edits `const\|let\|var\|val NAME = …  // TEMPTEST` lines (JS, Swift, Kotlin); native drivers rebuild first (minutes) |
+| re-check every saved flow (the fix loop) | `$D verify` — one call, no recording, no evidence touched |
 | evidence run | `$D replay` |
 | screenshot (simctl / adb, no Maestro) | `$D shot <name>` |
 | media | `$D video <name> [filter]`; frame/jpg/publish are shared: `<skill>/scripts/media.sh` |
@@ -43,7 +44,8 @@ Driver-specific:
 ## Maestro (2.x, `~/.maestro/bin`, Java 17)
 - Never drive the real mouse (cliclick/AppleScript): the user works on the same machine.
 - **Speed** (the drivers keep one `maestro mcp` session per repo, `scripts/maestro_session.py`; it
-  exits after 45 min idle, and reconnects by itself when another Maestro process took the device):
+  exits after 45 min idle, reconnects by itself when another Maestro process took the device, and
+  gives up on a single call after `MAESTRO_CALL_TIMEOUT` seconds, default 600, without re-running it):
   - one step = one whole state change (navigate → act → assert), not one command per step; split
     only where the next rule says. 30–60 one-command steps per ticket was the main cost before.
   - `$D inspect` once per new screen, then tap by the id/text it shows; never guess-and-retry.
@@ -75,7 +77,7 @@ Driver-specific:
   points. Points break when layout shifts and can't fail on the wrong screen — anchor them with an
   `assertVisible` first. Never tap a control by point after a timed action (a recording, an upload):
   the control under that point changes with state — re-read the hierarchy and tap by id.
-- `assertVisible: "<text>"` matches text and accessibility labels only — a test id (`rid` in
+- `assertVisible: "<text>"` matches text and accessibility labels only — a test id (`id=` in
   `inspect` output) needs `assertVisible: {id: "…"}`; an `assertNotVisible` on an id written as text
   always passes (it can't fail).
 - Icon-only buttons often expose no text → tap by point; tab labels may be truncated → regex
@@ -107,6 +109,9 @@ Driver-specific:
 - iOS 26.x: an XCTAutomationSupport SIGSEGV (XCTAutomationSession block) in the app's crash log ~1 h
   into a Maestro session is the automation framework, not the app — check the faulting thread
   before reporting a crash; the app then cold-starts, so every ac flow must navigate to its screen.
+- The first step after a fresh boot can lose its first tap while the automation driver warms up
+  (seen 2026-10-21: the tap on a list row did nothing, the same step passed twice right after). Re-run
+  that step once before calling it a FAIL — the "flaky → re-run once" rule.
 - Taps sent while the app isn't frontmost hit SpringBoard and can open the Files app; the drivers
   terminate `com.apple.DocumentsApp` and re-foreground the app.
 - Background → foreground: `simctl launch <udid> com.apple.Preferences`, wait, then
@@ -140,9 +145,28 @@ Driver-specific:
 - Every code change needs `build` before the app shows it: run `needs` after each edit; a fix loop
   costs a build per attempt, so batch the edits of one hypothesis before building.
 - `needs` fingerprints every tracked and untracked file except `*.md` and `.claude/` — a new source
-  file counts. `setup` (SETUP_CMD, e.g. `pod install`) is listed only when the context sets one.
+  file counts. A whitespace-only edit counts once it's staged (unstaged ones are ignored): a rebuild
+  then is unneeded but harmless. `setup` (SETUP_CMD, e.g. `pod install`) is listed only when the context sets one.
 - `force` rebuilds before relaunching: a forced state costs a build. Prefer a test-data helper or a
   launch argument the app already reads when one exists.
+- Evidence: the replay must run on what will ship — `needs`, then `build` if NEEDED, before `relaunch`
+  and `replay` (the leftover check and the removed forcing changed the code since the last build).
+
+## Forced states
+A state real data can't reach is forced with `// TEMPTEST <TICKET>` lines (`phases/test.md` §3.2), one
+`$D force <file> NAME=<value>… shot ac<N>-<k>-<state>-forced` call per state. When the AC also needs a
+**video** (no replayable flow, and `done_fields` expects one), record that state instead of shooting
+it: run its `force` without `shot` — the recipe's step screenshot is the evidence, one image, not two.
+In the forced dir every step is recorded and screenshotted; a step that fails leaves a `fail-` shot
+and no clip, so join the video only after the step passed. Write the literal forced dir
+`<F>` = `$W/shots/<ios|android>/forced` on every line (one tool call per line):
+```
+mkdir -p <F> && rm -rf <F>/clips && touch <F>/.recording
+SIM_PLATFORM=<ios|android> SIM_OUT=<F> <driver> step '<commands>' ac<N>-<k>-<state>-forced
+rm <F>/.recording && SIM_PLATFORM=<ios|android> SIM_OUT=<F> <driver> video ac<N>-forced -ac<N>-
+```
+(`<driver>`: the surface's mobile driver, § Which driver.) The video is
+`shots/<surface>/forced/ac<N>-forced.mp4`; Ship publishes it.
 
 ## Recording, evidence and publishing
 - `$D video <name> [filter]` joins clips with AVFoundation (`scripts/join.swift`, fits 1920×1080;

@@ -38,8 +38,9 @@ same before opening the PR; mark the ones that can't run locally.
 provider: **<jira | linear | github-issues | none | …>**
 | Key | Value |
 |---|---|
+
 One row per key in the provider's "Config keys" table (`providers/tracker/<name>.md` in the skill),
-plus the two the skill itself reads:
+plus the three the skill itself reads:
 - `qa_share` — where a `--test-only` QA report goes without asking (`ticket comment` / `pr comment` /
   `local`); unset → ask.
 - `domain_skills` — skills that map an area of the product (payments, search…), read in Phase 1.
@@ -49,6 +50,7 @@ plus the two the skill itself reads:
 provider: **<figma | none | …>**
 | Key | Value |
 |---|---|
+
 One row per key in the provider's "Config keys" table (`providers/design/<name>.md` in the skill).
 `quirks`: runs add to this.
 
@@ -69,6 +71,7 @@ How ACs get exercised in this repo. Keep only the rows that apply; the skill off
 | `web` | web UI ACs | web (Playwright) | local or deployed URL, login policy |
 | `backend` | backend ACs: API responses, GraphQL fields, DB rows, queue messages, jobs | backend (curl/jq, DB_CMD, CLI probes) | environment, auth source, read-only DB? |
 | `<name>` | e.g. end-to-end on a preview env | external: skill `<plugin:skill>` or a command | how to run it, where its report/videos land |
+
 Never point a surface at production unless it is explicitly read-only.
 `automatic_shared_writes: yes` lets `--automatic` runs write test data to the shared environments
 above without a human confirming; unset = those ACs are BLOCKED in automatic runs.
@@ -80,7 +83,7 @@ surfaces you use:
 MOBILE_DRIVER=       # react-native (package.json depends on react-native) | native — read by the skill to pick the driver
 APP_ID=              # bundle id / applicationId
 IOS_DEVICE=""        # simulator by name, e.g. "iPhone 15" (the same on every machine); unset = a booted one
-IOS_RUNTIME=         # optional iOS version for IOS_DEVICE, e.g. 26.1; unset = the newest
+IOS_RUNTIME=         # optional iOS version for IOS_DEVICE, e.g. 26.1; unset = a booted one of that name, else the newest
 ANDROID_AVD=         # emulator by AVD name (emulator -list-avds); unset = the running emulator / first AVD
 # IOS_UDID=          # one machine only: a simulator's UDID, wins over IOS_DEVICE (or pass SIM_UDID on the call)
 SETUP_CMD=""         # install deps (npm ci, pod install…), run from the repo root; unset = none
@@ -96,6 +99,7 @@ WEB_URL=             # app base URL
 WEB_START_CMD=""     # starts the app locally; unset = it runs elsewhere
 # backend
 API_URL=             # HTTP API base URL
+API_TIMEOUT=         # optional: seconds a request may take (default 60)
 API_AUTH_CMD=''      # prints one header line ("Authorization: Bearer …"); never a stored secret
 DB_CMD=''            # reads SQL on stdin (e.g. psql …); confirm before writes to a shared DB
 BACKEND_RESET_CMD='' # resets test data before a replay
