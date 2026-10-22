@@ -1,7 +1,13 @@
 # product-engineer
 
-**A skill for AI coding agents that takes a ticket from your tracker to a reviewed, tested pull
-request — and waits for your approval before it writes any code.**
+**A skill for AI coding agents that runs the whole workflow from ticket to pull request: it reads the
+ticket, plans the work, writes the code, tests every acceptance criterion on a real device or
+browser, reviews the result and opens the PR — and waits for your approval before it writes any
+code.**
+
+```
+ticket → analysis → design → plan (you approve) → code → test → review → evidence → pull request
+```
 
 Works with **Claude Code, Cursor and GitHub Copilot**. It's written in the open
 [Agent Skills](https://agentskills.io) format (`SKILL.md`), so you install it once as a folder and
@@ -14,17 +20,21 @@ your agent picks it up.
 
 Give your agent a ticket key. It then works the way a careful product engineer would:
 
-- reads the ticket, its comments, linked tickets and the design
-- rewrites every acceptance criterion (AC) so it can be tested
-- writes a plan and **waits for your approval**
-- writes the code in your repo's conventions
-- proves every AC on a real iOS simulator, Android emulator, browser or backend
-- has the result reviewed by independent reviewers
-- records evidence: screenshots, videos, request transcripts
-- opens the PR and updates the ticket
+1. **Understands the ticket** — the description, every comment, linked tickets and attached media —
+   and rewrites each acceptance criterion (AC) so it can be tested.
+2. **Reads the design** and maps it to your repo's tokens, icons and components.
+3. **Plans** the steps, the tests and what's out of scope, then **waits for your approval**.
+4. **Writes the code** in your repo's conventions.
+5. **Proves every AC** on a real iOS simulator, Android emulator, browser or backend, plus your unit
+   tests and CI checks — and fixes what fails.
+6. **Gets an independent review** that tries to break the "done" claim.
+7. **Records evidence**: screenshots, videos and request transcripts of the final code.
+8. **Opens the pull request** with the verdict, the AC table and the evidence, and updates the
+   ticket.
 
 A **QA mode** (`--test-only`) checks an already-built feature against its ACs and writes a report,
-without changing any code.
+without changing any code. An **automatic mode** (`--automatic`) runs the whole workflow with no one
+answering, for CI pipelines.
 
 ```
 /product-engineer PROJ-123 --ios
