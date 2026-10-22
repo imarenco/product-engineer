@@ -34,6 +34,7 @@ without changing any code.
 - [Requirements](#requirements)
 - [Installation](#installation)
 - [Usage](#usage)
+- [Running in a pipeline](#running-in-a-pipeline)
 - [Configuration](#configuration)
 - [Supported tools](#supported-tools)
 - [Compatibility](#compatibility)
@@ -156,6 +157,7 @@ server state behind them.
 |---|---|
 | `--test-only` | QA mode: no code changes, no branch, no PR — a QA report with findings and sub-bugs |
 | `--no-sim` | unit tests and CI checks only, no surface |
+| `--automatic` | no human: the plan is approved and every question takes its recommended answer — for [pipelines](#running-in-a-pipeline) |
 | `resume` | continue a run from where it stopped |
 
 Examples:
@@ -167,6 +169,32 @@ Examples:
 ```
 
 Plain requests work too: "implement PROJ-123", "QA PROJ-123", "verify the ACs of PROJ-123".
+
+## Running in a pipeline
+
+`--automatic` runs the whole ticket once, end to end, with nobody answering:
+
+```
+/product-engineer PROJ-123 --backend --automatic
+```
+
+- **The plan is approved by the flag**, and every question takes its recommended answer. Each one is
+  logged and listed in the PR under "Decided automatically".
+- **PASS opens a PR ready for review** and fills the tracker fields. **CONCERNS or FAIL opens a
+  draft PR** with the verdict and every problem at the top, and leaves the tracker alone, so nothing
+  looks approved that isn't.
+- **It stops, and pushes nothing,** when no answer is safe to take alone: an incomplete project
+  context, a dirty checkout, or a change the plan didn't foresee. `report.md` says what a human must
+  do.
+- **Failures are never waived** (only a person can), and test data is written to shared environments
+  only if the context says `automatic_shared_writes: yes`. Production never.
+- Every run ends with **`.claude/work/<TICKET>/result.json`** — `status` (`done` / `stopped`),
+  `verdict`, `pr`, `draft`, `reason` — for the pipeline to read.
+
+What the pipeline needs: the project context committed and complete; a macOS runner for the mobile
+surfaces, with the simulator or emulator and any logins already set up; `gh` authenticated; the
+tracker and design MCP servers configured; and the agent run headless with permission to run
+commands, edit files and push (in Claude Code, `claude -p` with a permission mode that allows them).
 
 ## Configuration
 

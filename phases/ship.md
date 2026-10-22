@@ -17,6 +17,7 @@ or "should pass".
   as it is (`SKILL.md` § Rules for every phase).
 
 ## 2. Gate before publishing — the ticket verdict from Review
+`--automatic`: no questions — PASS as below; CONCERNS or FAIL → a draft PR (`SKILL.md` § Automatic mode).
 - **PASS** → go on without asking: publish + commit + push + PR + tracker update are part of this skill.
 - **CONCERNS** → one question listing every concern and every outward action this phase will
   take (assets branch, push, PR, tracker fields): go on / fix first / stop. On "go on", each concern

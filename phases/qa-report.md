@@ -45,6 +45,7 @@ run of this skill without `--test-only`).
   **Where in the code** (`file:line`, "likely, unconfirmed"), **Evidence** (image names).
 
 ## 3. Share — only with the user's OK (outward-facing)
+`--automatic`: `qa_share` if set, else keep it local — never a question.
 `$CTX` § Tracker `qa_share` names a standing choice (e.g. `ticket comment`) → do that, announced in
 the chat ("posting to <TICKET> as usual"), no question. No `qa_share` → one question,
 recommended option first, plus "Always do this" variants; an "always" answer is written to `$CTX`

@@ -55,7 +55,7 @@ Tell each one: read the pack, change nothing, return findings only as
 |---|---|---|
 | `patch` | the code is wrong | fix loop (`phases/test.md` §4); `--test-only`: a finding for the report |
 | `test` | the test or evidence is wrong/weak | strengthen the step, re-verify the AC |
-| `intent-gap` / `bad-plan` | the ACs or the approved plan didn't cover it, or are wrong | a question — never decide alone |
+| `intent-gap` / `bad-plan` | the ACs or the approved plan didn't cover it, or are wrong | a question — never decide alone (`--automatic`: `defer`) |
 | `defer` | real, out of this ticket's scope | follow-up note for the PR / tracker |
 | `reject` | the reviewer is wrong | one-line reason with evidence |
 Log each as `- <id> <class> <triage>: <one line>` under `## Review triage` in `state.md`, so a later

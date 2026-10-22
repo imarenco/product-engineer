@@ -70,6 +70,8 @@ How ACs get exercised in this repo. Keep only the rows that apply; the skill off
 | `backend` | backend ACs: API responses, GraphQL fields, DB rows, queue messages, jobs | backend (curl/jq, DB_CMD, CLI probes) | environment, auth source, read-only DB? |
 | `<name>` | e.g. end-to-end on a preview env | external: skill `<plugin:skill>` or a command | how to run it, where its report/videos land |
 Never point a surface at production unless it is explicitly read-only.
+`automatic_shared_writes: yes` lets `--automatic` runs write test data to the shared environments
+above without a human confirming; unset = those ACs are BLOCKED in automatic runs.
 
 Driver values (sourced as shell; `$UDID`, `$SERIAL`, `$REPO` are set by the drivers). Keep only the
 surfaces you use:

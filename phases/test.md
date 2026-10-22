@@ -160,7 +160,7 @@ back here. Repeat:
    compaction. Run the leftover check (`SKILL.md` § Rules for every phase) before leaving the phase.
 7. Loop while anything is FAIL.
 
-**Cap:** 3 fix attempts per AC. Three failed fixes usually mean the approach is wrong, not the
+**Cap:** 3 fix attempts per AC (`--automatic`: `SKILL.md` § Automatic mode). Three failed fixes usually mean the approach is wrong, not the
 details: on the 4th failure stop and ask a question with the evidence (what fails, hypotheses tested,
 what was tried) — rethink the approach (say which) / accept as known and continue / stop. "Accept"
 is a waiver of that AC: ask in the same round for the reason, owner and follow-up ticket, and write

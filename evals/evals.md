@@ -33,6 +33,7 @@ Flags combine (`--ios --android`, same as `--both`; `--web --backend`; …). No 
 | 7 | `/product-engineer <WEB-TICKET> --web` (stop at the gate) | web UI: Playwright `expect` rows, local app start or a deployed URL, saved login |
 | 8 | `/product-engineer <UI-TICKET> --ios --android` | both platforms in one run: every UI AC verified and recorded on each |
 | 9 | `/product-engineer <NATIVE-TICKET> --ios` in a native app (`MOBILE_DRIVER=native`; stop after Test) | `ios.sh`: a build after every code change, state probed with `defaults` |
+| 10 | `/product-engineer <UI-TICKET> --ios --automatic` (headless, no answers given) | a pipeline run: no question asked, a PR at the end, `result.json` written |
 
 ## Assertions (each must be checkable from the files, not from the chat)
 - `analysis.md`: every AC has a testable form (WHEN … SHALL …) and a priority; every gap is either a
@@ -77,6 +78,9 @@ Flags combine (`--ios --android`, same as `--both`; `--web --backend`; …). No 
   in the background before Phase 1 (the gate baseline after `setup`); a JS-only ticket on an
   unchanged native fingerprint has no `build` call; `metro` is started without `reset` unless the
   branch or dependencies changed.
+- Scenario 10: no question asked; `analysis.md` / `state.md` log each `auto:` decision and the PR lists them;
+  `state.md` has `approved: automatic`; a PASS opens a ready PR, CONCERNS/FAIL a draft one; no shared-env
+  write without `automatic_shared_writes: yes`; `$W/result.json` has every key, `status` and `pr` filled.
 - An AC accepted at Test's 3-attempt cap is in `state.md` § Waivers, the verdict is WAIVED, and Ship
   asks no second waiver question.
 - Mobile steps go through the Maestro session (`MAESTRO EXIT` lines from the driver, steps run by

@@ -1,6 +1,6 @@
 ---
 name: product-engineer
-description: Use when the user hands over a ticket (key or link) to build, fix, ship or QA in a repo - "/product-engineer <TICKET>", "implement <TICKET>", "build <TICKET>", "work on <TICKET>", "do this ticket", "ship <TICKET>"; and with --test-only for already-built work - "test <TICKET>", "QA <TICKET>", "verify the ACs of <TICKET>". Args - a ticket key, plus optional "resume", "--ios" / "--android" / "--both" / "--web" / "--backend" (test surfaces; asked when omitted), "--no-sim" (unit tests only), "--test-only" (no code changes, no branch, no PR - a QA report).
+description: Use when the user hands over a ticket (key or link) to build, fix, ship or QA in a repo - "/product-engineer <TICKET>", "implement <TICKET>", "build <TICKET>", "work on <TICKET>", "do this ticket", "ship <TICKET>"; and with --test-only for already-built work - "test <TICKET>", "QA <TICKET>", "verify the ACs of <TICKET>". Args - a ticket key, plus optional "resume", "--ios" / "--android" / "--both" / "--web" / "--backend" (test surfaces; asked when omitted), "--no-sim" (unit tests only), "--test-only" (no code changes, no branch, no PR - a QA report), "--automatic" (no human - plan auto-approved, recommended answers, for pipelines).
 ---
 
 # /product-engineer <TICKET>
@@ -62,6 +62,33 @@ build it. Same phases; each phase file says its own `--test-only` differences. T
 - **Ship**: `phases/qa-report.md` instead of `phases/ship.md` — no work branch, commit or PR, nothing of
   the code pushed; only the share option the user picks may publish media (the assets branch).
 
+**Automatic mode (`--automatic`)** — for pipelines: one run, no human, from the ticket to the PR.
+Passing the flag is the plan approval and the standing answer "take the recommended option". It
+combines with every other flag. This section overrides every question in the phase files:
+- **Never ask.** Each question gets its recommended option (every question has one — `phases/ticket.md`
+  § Gaps), logged as `auto: <question> → <answer>` in `analysis.md` § Clarifications (up to the plan)
+  or `state.md` § Auto decisions (after it), and listed in the PR under "Decided automatically". The
+  plan gate writes `plan.md` and records `approved: automatic` in `state.md` — no dialog.
+- **Stop instead** when no option is safe to take alone: the context lacks a value the repo can't
+  show (tracker, provider config, base-branch rule); tracked changes are already in the tree; the
+  branch check fails; or the recommended answer would cross the plan's Intent / Never or a safety rule
+  (including a behaviour change the plan didn't foresee, `phases/code.md` §4). A stop pushes nothing:
+  `$W/report.md` says why and what a human must do.
+- **Shared environments**: writes to staging, a shared DB or queue, and test-data helpers, only when
+  `$CTX` § Test surfaces says `automatic_shared_writes: yes`; otherwise those ACs are BLOCKED.
+  Production never. A device or browser that isn't logged in → its UI ACs are BLOCKED.
+- **Fix cap** (`phases/test.md` §4): after 3 failed attempts, one "rethink the approach" round of up to
+  3 more; still failing → the AC stays FAIL. No waivers — only a human waives.
+- **Review**: an `intent-gap` / `bad-plan` finding is triaged `defer` and listed as a concern.
+- **Ship**: PASS → the PR, ready for review, and the tracker fields. CONCERNS or FAIL → a **draft** PR
+  (`gh pr create --draft`) with the verdict and every concern and failure at the top; no tracker
+  done-fields, transitions or comments. A tracker field that already holds a value is left as is.
+  `--test-only`: shared per `qa_share`, else kept local.
+- **Context updates** stay `proposed` in `$W/context-updates.md`; never applied.
+- **Last**, whether done or stopped: `$W/result.json` — `{"ticket", "mode", "status": "done" |
+  "stopped", "verdict", "pr": <url or null>, "draft": <bool>, "branch", "report": <path>,
+  "auto_decisions": <count>, "reason": <why it stopped, or null>}` — the file a pipeline reads.
+
 **Read each phase file when you enter that phase**, not all upfront. Run them in order, with three
 loops back:
 - **Test ⇄ Code** (not in `--test-only`) until every AC is green: any FAIL goes back to Code for a
@@ -104,7 +131,7 @@ test), surfaces, gate baseline, one line per finished phase. The phases add thes
 names: `## Gates` (command, result, counts, fingerprint — Test §2), `## Verdicts` (AC, surface,
 verdict, attempt, Held by — Test §3–4, Review §5), `## Visual` (Test §3.3), `## Root causes` (Test
 §4), `## Waivers` (AC, reason, owner, follow-up — Test §4 cap, Ship §2), `## Review triage` (Review
-§3) and `verdict:` (Review §5).
+§3), `## Auto decisions` (`--automatic`) and `verdict:` (Review §5).
 With `resume` (or when `$W/state.md` exists), read it and continue from the phase it names — a
 compacted or new session picks up there. On resume run only Preflight steps 1 (context only —
 `state.md` is kept), 2, 3 and 6 (providers, git status, surface status): never re-check out the base,
@@ -254,6 +281,7 @@ Then the gate, in rounds of **questions**:
    table, automated checks, coverage %, assumptions and out of scope (plain text, ≤ ~60 lines;
    longer → the essentials plus "full plan: `$W/plan.md`"). The question names the ticket and says
    where the plan is ("see the plan on the right" in Claude Code).
+In `--automatic`, no questions and no dialog: § Automatic mode.
 In `--test-only`, the plan is only the **Test plan**, **Automated checks** (the existing suite + each CI
 check, no new tests), the **Coverage** table (AC ↔ test rows, no Steps column) and Out of scope; same
 questions-then-approval gate, and the approval is to start testing.
@@ -290,7 +318,8 @@ questions-then-approval gate, and the approval is to start testing.
   phase, after the verdict gate: without asking on PASS or WAIVED (the user already waived each FAIL);
   on CONCERNS one **question** listing every outward action and every concern; on FAIL one
   **question**: fix / waive (user gives reason, owner, follow-up) / stop — see `phases/ship.md` §2.
-  `--test-only`: the share decision in `phases/qa-report.md` §3 replaces this gate. Writes to a
+  `--test-only`: the share decision in `phases/qa-report.md` §3 replaces this gate. `--automatic`: no
+  questions — CONCERNS or FAIL opens a draft PR instead (§ Automatic mode). Writes to a
   shared test environment (staging data, a shared DB or queue) are outward too: confirmed before the
   first one (Preflight step 6, Test §3).
 - Learned something the hard way? A fact about **this project** (a screen's tap point, a quirk, a
