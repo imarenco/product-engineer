@@ -8,6 +8,16 @@ description: Use when the user hands over a ticket (key or link) to build, fix, 
 You are the product engineer for the whole ticket. Work in the main thread — you must understand the
 ticket yourself. Subagents only where § Subagents says. Never delegate the decisions.
 
+**Agent tools.** The skill runs in Claude Code, Cursor and GitHub Copilot. It names a capability;
+use your agent's tool for it, or the fallback:
+| Capability | Claude Code | No such tool |
+|---|---|---|
+| **question** — options for the user, the recommended one first | `AskUserQuestion` | a chat message with numbered options; **wait for the reply** — silence or an unrelated "ok" is never an answer |
+| **subagent** — a fresh-context, read-only helper | `Agent` (`Explore` for searches) | do the work yourself, in order. For Review: finish everything else, then review only from `$W/review/` — not independent, so say so in the PR, verdict CONCERNS at best |
+| **background run** — a long command you don't wait on | `run_in_background`, then its completion notice | `nohup <cmd> > $W/<name>.log 2>&1 &`; check the log before the step that needs it |
+| **MCP tools** (the providers) | loaded with `ToolSearch` | the tools your agent already has from that server |
+| **image check** (screenshots, frames) | `Read` the PNG | your agent's image view; none → that visual check is HUMAN |
+
 **Project context.** This skill is the method; every fact about the repo and company (which ticket
 system and design system it uses and their config, base-branch rule, commands, conventions, test
 surfaces, app quirks, PR style, files never to stage) lives in the repo's
@@ -43,7 +53,7 @@ build it. Same phases; each phase file says its own `--test-only` differences. T
   `mode: test-only` in `state.md`. Step 4 only resolves the base branch by its rule (Test compares
   failing checks against it) — no checkout, no new branch. Find the code under test:
   `gh pr list --state all --search "<TICKET>"` and `git branch -a | grep -i <TICKET>`; one
-  AskUserQuestion to pick it (the ticket's PR branch / current branch / base branch if already
+  question to pick it (the ticket's PR branch / current branch / base branch if already
   merged). Clean tree (the context file excepted — § Rules for every phase), then
   `git fetch origin && git checkout -m --detach origin/<branch>` (or the local branch when it has no
   remote; same conflict rule as step 4). Record branch + SHA in `state.md`.
@@ -107,10 +117,10 @@ in `--test-only` only TEMPTEST lines and the context file are expected. A `state
 
 ## Subagents
 
-Use the `Agent` tool **only** here — launch each group in one message so they run in parallel:
+Use **subagents** only here — launch each group at once so they run in parallel:
 | Phase | Agents | Returns |
 |---|---|---|
-| 1 Ticket, after you read the ticket + epic and load the domain skill (steps 1, 2, 5) | **related tickets** (one agent, when ≥ 2 linked/mentioned keys) · **media** (one per video/doc an AC depends on, via the provider's `read_media`) · **code scout** (Explore: screens/components/API per AC; one more per other repo for "same as web" ACs) | related: key, status, ACs, relation, boundary · media: what it shows that the ACs don't, with timestamps · scout: `file:line` per AC + what it does today |
+| 1 Ticket, after you read the ticket + epic and load the domain skill (steps 1, 2, 5) | **related tickets** (one agent, when ≥ 2 linked/mentioned keys) · **media** (one per video/doc an AC depends on, via the provider's `read_media`) · **code scout** (a search subagent: screens/components/API per AC; one more per other repo for "same as web" ACs) | related: key, status, ACs, relation, boundary · media: what it shows that the ACs don't, with timestamps · scout: `file:line` per AC + what it does today |
 | 2 Design, per distinct layout (≥ 2 layouts) | **spec + mapping**: `spec(frame)`, then grep tokens, icons, components | the `## Design` table rows for that layout + missing assets |
 | 6 Review | as `phases/review.md` §2 | findings |
 
@@ -137,8 +147,8 @@ checked on that surface.
    keep it local / a `## Project context` section in `AGENTS.md` instead (its `##` headings demoted to
    `###`). Fill what the repo shows (package.json / build files /
    `AGENTS.md`/`CLAUDE.md` / `git remote` / `gh pr list --limit 5` / `xcrun simctl list` (→ `IOS_DEVICE` by name, not a UDID: the context is shared) /
-   `emulator -list-avds` / the MCP servers available), ask the rest in one or two AskUserQuestion
-   calls (ticket system, design system, base-branch rule, PR conventions), save it, and recommend the
+   `emulator -list-avds` / the MCP servers available), ask the rest in one or two **questions**
+   (ticket system, design system, base-branch rule, PR conventions), save it, and recommend the
    user commits it on its own (outside the ticket's PR) — an uncommitted context is noise in every
    later `git status`. Sections the context lacks for this ticket → same: ask, then
    write them in.
@@ -161,7 +171,7 @@ checked on that surface.
    again — never resolve by discarding the edits. `<base>` means `origin/<base>` from here on.
 5. **Test surfaces** (unless `--no-sim`): which surfaces the Test and Evidence phases use, among
    those `$CTX` § Test surfaces declares. Taken from the args (`--ios`, `--android`, `--both`,
-   `--web`, `--backend`, combinable; `--api`, and an `api` surface in an older context, are old names for `backend`); otherwise ask one AskUserQuestion (multiSelect) listing the
+   `--web`, `--backend`, combinable; `--api`, and an `api` surface in an older context, are old names for `backend`); otherwise one **question** (multi-select) listing the
    declared surfaces, recommending the ones where this ticket's ACs are visible: UI ACs → the app's
    UI surfaces (both mobile platforms when the change touches platform-specific or native code),
    backend ACs → `backend`, both when a UI action must also change server state. Record it in `state.md`.
@@ -170,15 +180,15 @@ checked on that surface.
    Fix or ask now — not halfway through testing. **Start the slow work now and don't wait for it**:
    mobile → `needs`, then in the background only what it marks NEEDED, chained `setup` → `build`
    (and `metro` for React Native); the gate baseline (step 7) runs after `setup`, beside the build. Go on to Phase 1
-   and 2 while they run; check the notifications before the plan gate (a failure there is a gate
+   and 2 while they run; check those background runs before the plan gate (a failure there is a gate
    question). In build mode the work branch starts from the base, so what's built now serves the
    Test phase too — a later JS-only edit needs no rebuild. Long commands (builds, `setup`) run with
-   `run_in_background` and you wait for the notification — never a sleep loop. Each time you start
+   **background runs** — never a sleep loop. Each time you start
    one, tell the user what it is and roughly how long (a clean iOS build: 5–10 min) — silence reads
    as stuck. The install command fails on this base (missing script, peer-dependency error) → use
    the base's own steps (its `package.json` scripts, README, CI workflow), and log them as
    `proposed` for `$CTX` (install command per base branch).
-   - A device that isn't logged in → AskUserQuestion: log in now (the user does it; you re-check) /
+   - A device that isn't logged in → a **question**: log in now (the user does it; you re-check) /
      drop that surface / continue with its UI ACs marked BLOCKED.
    - A `backend` target, `DB_CMD` or `cmd` probe that isn't local (staging, shared DB) → confirm with the user before
      the first write or seeded data; production only when it is explicitly read-only.
@@ -232,18 +242,18 @@ Write `$W/plan.md` from `analysis.md`:
 - **Size check**: if the plan is longer than the change it describes, it is writing the code — cut it
   to behaviour, files and tests.
 
-Then the gate, in AskUserQuestion rounds:
+Then the gate, in rounds of **questions**:
 1. **Questions** — the open ones from `analysis.md`, unreadable design links, and gates failing in
    the Preflight baseline — in dependency order: ask only those whose prerequisites are settled (≤4 per call,
    recommended option first, worded so accepting the recommendation is one click); questions that
    depend on an answer wait for the next round. Log each answer in `analysis.md` § Clarifications and
    fold it into the plan.
-2. **Approval**, in its own call: Approve / Change something / Stop. **No approval, no code.** The
+2. **Approval**, in its own question: Approve / Change something / Stop. **No approval, no code.** A
    question dialog covers the chat, so text written just before it goes unseen: put the plan **in
-   the dialog** — the `preview` of the Approve option holds intent + Never, steps, the test-plan
+   the question** (Claude Code: the `preview` of the Approve option; a chat fallback: the message itself) — it holds intent + Never, steps, the test-plan
    table, automated checks, coverage %, assumptions and out of scope (plain text, ≤ ~60 lines;
-   longer → the essentials plus "full plan: `$W/plan.md`"). The question text names the ticket and
-   says "see the plan on the right".
+   longer → the essentials plus "full plan: `$W/plan.md`"). The question names the ticket and says
+   where the plan is ("see the plan on the right" in Claude Code).
 In `--test-only`, the plan is only the **Test plan**, **Automated checks** (the existing suite + each CI
 check, no new tests), the **Coverage** table (AC ↔ test rows, no Steps column) and Out of scope; same
 questions-then-approval gate, and the approval is to start testing.
@@ -278,8 +288,8 @@ questions-then-approval gate, and the approval is to start testing.
 - Stay inside the approved plan; a behaviour change the plan didn't foresee → stop and ask.
 - **Outward actions** (push, PR, assets branch, tracker fields, comments) happen only in the last
   phase, after the verdict gate: without asking on PASS or WAIVED (the user already waived each FAIL);
-  on CONCERNS one AskUserQuestion listing every outward action and every concern; on FAIL one
-  AskUserQuestion: fix / waive (user gives reason, owner, follow-up) / stop — see `phases/ship.md` §2.
+  on CONCERNS one **question** listing every outward action and every concern; on FAIL one
+  **question**: fix / waive (user gives reason, owner, follow-up) / stop — see `phases/ship.md` §2.
   `--test-only`: the share decision in `phases/qa-report.md` §3 replaces this gate. Writes to a
   shared test environment (staging data, a shared DB or queue) are outward too: confirmed before the
   first one (Preflight step 6, Test §3).

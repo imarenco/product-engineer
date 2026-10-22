@@ -18,12 +18,12 @@ or "should pass".
 
 ## 2. Gate before publishing — the ticket verdict from Review
 - **PASS** → go on without asking: publish + commit + push + PR + tracker update are part of this skill.
-- **CONCERNS** → one AskUserQuestion listing every concern and every outward action this phase will
+- **CONCERNS** → one question listing every concern and every outward action this phase will
   take (assets branch, push, PR, tracker fields): go on / fix first / stop. On "go on", each concern
   is listed in the PR (the reviewer decides whether it blocks merge).
 - **WAIVED** → go on without asking: the user already waived each FAIL (Test's cap); each waiver's
   reason, owner and follow-up from `state.md` § Waivers goes into the PR.
-- **FAIL** → one AskUserQuestion: fix it (back to the loop) / waive it — the user gives reason, owner and
+- **FAIL** → one question: fix it (back to the loop) / waive it — the user gives reason, owner and
   follow-up ticket, written into § Waivers and the PR / stop here. Never waive on your own.
 
 ## 3. Publish the media
@@ -118,7 +118,7 @@ Design: <design link> (frames compared: …)
 
 Refs: <TICKET>
 
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
+<the agent's attribution line, when it gives one>
 ```
 An AC with several states gets one image per state in its Evidence cell. A forced state is labelled
 "(forced)". Follow-ups the user agreed to (e.g. backend work) get a short section with a draft.

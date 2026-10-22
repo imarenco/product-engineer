@@ -48,7 +48,7 @@ when it passes on each; record the verdict per AC and surface.
 1. **Prepare once per ticket and surface** — mobile: usually already started in Preflight (step 6);
    otherwise run `needs` and only what it marks NEEDED: `setup` (dependencies changed since the last
    setup — once covers both platforms), `build` per platform (native code changed since this
-   driver's last build, or the app was installed by someone else; `run_in_background`, minutes).
+   driver's last build, or the app was installed by someone else; a background run, minutes).
    `boot` (Android) when no emulator runs. React Native (`references/react-native.md`): "build: not
    needed" means the installed Debug app already matches the native code and loads the ticket's JS
    from Metro — no rebuild for a JS-only ticket; `metro` resets its cache by itself only after a
@@ -161,7 +161,7 @@ back here. Repeat:
 7. Loop while anything is FAIL.
 
 **Cap:** 3 fix attempts per AC. Three failed fixes usually mean the approach is wrong, not the
-details: on the 4th failure stop and AskUserQuestion with the evidence (what fails, hypotheses tested,
+details: on the 4th failure stop and ask a question with the evidence (what fails, hypotheses tested,
 what was tried) — rethink the approach (say which) / accept as known and continue / stop. "Accept"
 is a waiver of that AC: ask in the same round for the reason, owner and follow-up ticket, and write
 them into `state.md` § Waivers — Review derives WAIVED from them and Ship puts them in the PR without

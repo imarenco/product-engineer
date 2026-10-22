@@ -36,6 +36,7 @@ without changing any code.
 - [Usage](#usage)
 - [Configuration](#configuration)
 - [Supported tools](#supported-tools)
+- [Compatibility](#compatibility)
 - [Limitations](#limitations)
 - [Troubleshooting](#troubleshooting)
 - [Project structure](#project-structure)
@@ -46,7 +47,7 @@ without changing any code.
 
 1. Install the skill for your user:
    ```sh
-   git clone <repo-url> ~/.claude/skills/product-engineer
+   git clone https://github.com/imarenco/product-engineer.git ~/.claude/skills/product-engineer
    ```
 2. Open Claude Code in the repo you work on and run:
    ```
@@ -109,7 +110,7 @@ The skill runs on **macOS**: its media scripts use Swift (AVFoundation), `sips` 
 
 | For | You need |
 |---|---|
-| everything | Claude Code, `git`, a GitHub repo, and the [GitHub CLI](https://cli.github.com/) `gh` logged in (PRs, PR checks, publishing evidence) |
+| everything | Claude Code, Cursor or GitHub Copilot ([Compatibility](#compatibility)), `git`, a GitHub repo, and the [GitHub CLI](https://cli.github.com/) `gh` logged in (PRs, PR checks, publishing evidence) |
 | the tracker | an MCP server or CLI for it: Jira (Atlassian MCP), Linear (MCP or an API key command), GitHub Issues (`gh`) — or none |
 | the design | the Figma MCP server — or none |
 | `--ios`, `--android` | [Maestro](https://maestro.mobile.dev/) (`~/.maestro/bin`), JDK 17 (any install macOS knows, or Homebrew `openjdk@17`), `python3` |
@@ -125,15 +126,15 @@ Clone the repo into a Claude Code skills folder. The skill is named `product-eng
 
 **For you, in every repo:**
 ```sh
-git clone <repo-url> ~/.claude/skills/product-engineer
+git clone https://github.com/imarenco/product-engineer.git ~/.claude/skills/product-engineer
 ```
 
 **For one repo, shared with everyone who works in it** (from the repo root, then commit it):
 ```sh
-git clone <repo-url> .claude/skills/product-engineer
+git clone https://github.com/imarenco/product-engineer.git .claude/skills/product-engineer
 ```
 
-To update, run `git pull` in the skill's folder.
+To update, run `git pull` in the skill's folder. For other agents, see [Compatibility](#compatibility).
 
 ## Usage
 
@@ -218,6 +219,23 @@ ANDROID_AVD=Pixel_8      # unset = the running emulator, or the first AVD
 
 Another tracker or design tool is one file under `providers/` that implements the operations in
 [providers/README.md](providers/README.md).
+
+## Compatibility
+
+`SKILL.md` follows the [Agent Skills](https://agentskills.io) format. It's written for the three most
+used coding agents:
+
+| Agent | Status | Install into |
+|---|---|---|
+| Claude Code | built and tested for it | `~/.claude/skills/product-engineer` |
+| Cursor | reads skills, including from `~/.claude/skills/`; not tested with this skill yet | `~/.cursor/skills/product-engineer`, or the Claude Code folder |
+| GitHub Copilot | reads `SKILL.md` from `.github/skills/` or `.agents/skills/`; not tested with this skill yet | `.github/skills/product-engineer` in the repo (check Copilot's docs for a user-level folder) |
+
+The drivers, scripts and project context are plain shell and markdown, so they work the same in all
+three. What differs is each agent's own tools. `SKILL.md` § Agent tools names each capability once —
+a question with options, a subagent, a background run, MCP tools, an image check — with the Claude
+Code tool and the fallback when an agent has no equivalent. The one real loss without subagents is
+the Review phase, which can't be independent; the PR then says so.
 
 ## Limitations
 

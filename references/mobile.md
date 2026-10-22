@@ -69,7 +69,7 @@ Driver-specific:
   with `assertVisible` of the expected screen, and assert outcomes in the flow.
 - Coordinates: **iOS = points** (screenshot px ÷ 3 on a 3× device), **Android = device pixels** (the
   screenshot's own pixels). Percentages must be integers (`"13.6%"` throws NumberFormatException).
-  The Read tool shows screenshots scaled — convert from the displayed size. `maestro --device <id>
+  An image view shows screenshots scaled — convert from the displayed size. `maestro --device <id>
   hierarchy` prints element bounds (Android: px) when unsure.
 - Selectors, best first: test id (`tapOn: {id: "…"}`), exact text, text scoped to a container, then
   points. Points break when layout shifts and can't fail on the wrong screen — anchor them with an

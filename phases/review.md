@@ -17,7 +17,8 @@ Run the leftover check (`SKILL.md` § Rules for every phase) first — reviewers
 - The rules: `$CTX` and the convention docs it names.
 Reviewers get **paths, not your summary** — your summary is a claim they must verify.
 
-## 2. Reviewers (run in parallel, read-only, fresh context — `Agent` tool)
+## 2. Reviewers (subagents in parallel, read-only, fresh context — `SKILL.md` § Agent tools; without
+subagents, its fallback)
 A diff under ~50 changed lines in ≤ 3 files gets **one** reviewer doing both the refuter and the
 standards job below (on a 2-file port, two found nothing one wouldn't).
 Tell each one: read the pack, change nothing, return findings only as
@@ -54,7 +55,7 @@ Tell each one: read the pack, change nothing, return findings only as
 |---|---|---|
 | `patch` | the code is wrong | fix loop (`phases/test.md` §4); `--test-only`: a finding for the report |
 | `test` | the test or evidence is wrong/weak | strengthen the step, re-verify the AC |
-| `intent-gap` / `bad-plan` | the ACs or the approved plan didn't cover it, or are wrong | AskUserQuestion — never decide alone |
+| `intent-gap` / `bad-plan` | the ACs or the approved plan didn't cover it, or are wrong | a question — never decide alone |
 | `defer` | real, out of this ticket's scope | follow-up note for the PR / tracker |
 | `reject` | the reviewer is wrong | one-line reason with evidence |
 Log each as `- <id> <class> <triage>: <one line>` under `## Review triage` in `state.md`, so a later
@@ -71,7 +72,8 @@ The first that applies:
   unresolved critical finding.
 - **CONCERNS** — any AC that is HUMAN or BLOCKED, or wasn't checked on any surface (`--no-sim`, or no
   surface can reach it); an AC proven only by forced/TEMPTEST state or a one-off run; an unknown
-  non-functional check; deferred major findings. Waived ACs are listed with the concerns.
+  non-functional check; deferred major findings; a review done without fresh-context subagents (not
+  independent — `SKILL.md` § Agent tools). Waived ACs are listed with the concerns.
 - **WAIVED** — the only FAILs are ACs the user waived (§ Waivers: reason, owner, follow-up ticket,
   all three going into the PR). Only the user waives; never derive a waiver yourself.
 - **PASS** — everything else.

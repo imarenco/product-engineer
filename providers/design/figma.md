@@ -10,7 +10,7 @@
 | `quirks` | file-specific behaviour (e.g. page listing incomplete) | all calls |
 
 ## Tools
-Figma MCP tools, loaded with ToolSearch (`get_metadata`, `get_screenshot`, `get_design_context`,
+Figma MCP tools (Claude Code: loaded with ToolSearch; `SKILL.md` § Agent tools) (`get_metadata`, `get_screenshot`, `get_design_context`,
 `get_variable_defs`, `download_assets`, `search_design_system`). Load skill `figma:figma-design-to-code`
 before the first `get_design_context`.
 

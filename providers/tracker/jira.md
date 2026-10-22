@@ -15,7 +15,7 @@
 | `standing_defaults` | gaps not worth asking | Ticket assumptions |
 
 ## Tools
-Atlassian MCP tools, loaded with ToolSearch (`select:<mcp>getJiraIssue,…`). Pass `cloudId` on every
+Atlassian MCP tools (Claude Code: loaded with ToolSearch, `select:<mcp>getJiraIssue,…`; `SKILL.md` § Agent tools). Pass `cloudId` on every
 call. If a server answers 403 ("app not installed"), ask which Atlassian server to use and record its
 prefix as `mcp`.
 

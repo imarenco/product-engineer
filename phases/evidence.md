@@ -29,7 +29,7 @@ BACKEND_OUT=$W/shots/backend  $SKILL/drivers/backend/backend.sh replay   # runs 
 ```
 The mobile drivers per `MOBILE_DRIVER`: `references/mobile.md` § Which driver. One line per tool call,
 literal paths (a `VAR=x cmd1 && cmd2` prefix reaches only `cmd1`). Replays
-take minutes: `run_in_background` and wait for the notification. React Native: the leftover check has
+take minutes: a **background run** (`SKILL.md` § Agent tools). React Native: the leftover check has
 passed, so run `quiet on` + `relaunch` before the replay and `quiet off` right after it (LogBox
 toasts would cover taps; the line must not survive to Ship). Each flow reuses the driver's Maestro
 session (~1–4 s, not ~30 s). Each replay re-runs every saved flow in AC order (`sort -V`) — doubling as a regression check of all

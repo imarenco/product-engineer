@@ -46,7 +46,7 @@ run of this skill without `--test-only`).
 
 ## 3. Share — only with the user's OK (outward-facing)
 `$CTX` § Tracker `qa_share` names a standing choice (e.g. `ticket comment`) → do that, announced in
-the chat ("posting to <TICKET> as usual"), no question. No `qa_share` → one AskUserQuestion,
+the chat ("posting to <TICKET> as usual"), no question. No `qa_share` → one question,
 recommended option first, plus "Always do this" variants; an "always" answer is written to `$CTX`
 as `qa_share` (logged `applied` in `$W/context-updates.md`):
 - **Comment on the ticket's PR** (when one exists): publish the media first (`phases/ship.md` §3,
@@ -70,4 +70,4 @@ tracker for sub-bugs filed since: the ticket's children created today, from `get
 
 Project facts in `$W/context-updates.md`: don't offer them after every run. When the user ends the
 session or asks, collect the `proposed` lines from every `.claude/work/*/context-updates.md` not yet
-applied into **one** multiSelect AskUserQuestion; apply the chosen ones, mark the rest `declined`.
+applied into **one** multi-select question; apply the chosen ones, mark the rest `declined`.

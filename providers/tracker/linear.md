@@ -21,7 +21,7 @@
 - **MCP (default).** Linear's official remote server: `https://mcp.linear.app/mcp` (read-write) or
   `/mcp/readonly`. Setup (the user, once): `claude mcp add --transport http linear-server
   https://mcp.linear.app/mcp`, then `/mcp` to sign in (OAuth). Tool names are not documented by Linear:
-  find them with ToolSearch (`"linear issue"`, `"linear comment"`, `"linear status"`) and use the ones
+  find them (Claude Code: with ToolSearch; other agents: their tool list) (`"linear issue"`, `"linear comment"`, `"linear status"`) and use the ones
   whose descriptions match each operation below. Not connected → tell the user the setup command; the
   skill can't run the OAuth flow itself.
 - **API (`access: api`).** `POST https://api.linear.app/graphql` with header
