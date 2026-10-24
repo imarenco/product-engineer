@@ -1,6 +1,6 @@
 ---
 name: product-engineer
-description: Use when the user hands over a ticket (key or link) to build, fix, ship or QA in a repo - "/product-engineer PROJ-123", "implement PROJ-123", "build PROJ-123", "work on PROJ-123", "do this ticket", "ship PROJ-123"; and with --test-only for already-built work - "test PROJ-123", "QA PROJ-123", "verify the ACs of PROJ-123"; and with --pr-comments once its PR is reviewed - "address the review comments on PROJ-123", "fix the PR comments". Args - a ticket key, plus optional "resume", "--ios" / "--android" / "--both" / "--web" / "--backend" (test surfaces; asked when omitted), "--no-sim" (unit tests only), "--test-only" (no code changes, no branch, no PR - a QA report), "--pr-comments" (answer the open review comments on the ticket's PR - fix, re-test, push, reply), "--automatic" (no human - plan auto-approved, recommended answers, for pipelines).
+description: Use when the user hands over a ticket (key or link) to build, fix, ship or QA in a repo - "/product-engineer PROJ-123", "implement PROJ-123", "build PROJ-123", "work on PROJ-123", "do this ticket", "ship PROJ-123"; and with --test-only for already-built work - "test PROJ-123", "QA PROJ-123", "verify the ACs of PROJ-123"; and with --pr-comments once its PR is reviewed - "address the review comments on PROJ-123", "fix the PR comments". Args - a ticket key, plus optional "resume", "--ios" / "--android" / "--mobile" (both) / "--web" / "--backend" (test surfaces; asked when omitted), "--no-sim" (unit tests only), "--test-only" (no code changes, no branch, no PR - a QA report), "--pr-comments" (answer the open review comments on the ticket's PR - fix, re-test, push, reply), "--automatic" (no human - plan auto-approved, recommended answers, for pipelines).
 ---
 
 # /product-engineer <TICKET>
@@ -161,9 +161,9 @@ checked on that surface.
    discarding the edits. From here on, compare against `origin/<base>` (just fetched), never a
    local `<base>`.
 5. **Test surfaces** (unless `--no-sim`): which surfaces the Test and Evidence phases use, among
-   those `$CTX` § Test surfaces declares. Taken from the args (`--ios`, `--android`, `--both`,
+   those `$CTX` § Test surfaces declares. Taken from the args (`--ios`, `--android`, `--mobile` = both,
    `--web`, `--backend`, combinable; `--api` and an `api` surface in an older context are old names
-   for `backend`); otherwise one **question** (multi-select) listing the declared surfaces,
+   for `backend`, `--both` for `--mobile`); otherwise one **question** (multi-select) listing the declared surfaces,
    recommending the ones where this ticket's ACs are visible: UI ACs → the app's UI surfaces (both
    mobile platforms when the change touches platform-specific or native code), backend ACs →
    `backend`, both when a UI action must also change server state. Record it in `state.md`.

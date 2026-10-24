@@ -22,7 +22,7 @@ The surface flags only say where the ticket is developed and tested; each one ro
 | `--web` | `drivers/web/web.sh` (Playwright) | `$W/shots/web/` |
 | `--backend` | `drivers/backend/backend.sh` (HTTP / GraphQL, SQL, queues and other CLIs) | `$W/shots/backend/` |
 
-Flags combine (`--ios --android`, same as `--both`; `--web --backend`; …). No flag → Preflight asks;
+Flags combine (`--ios --android`, same as `--mobile`; `--web --backend`; …). No flag → Preflight asks;
 `--no-sim` → unit tests only, no driver.
 
 | # | Prompt | Why it's a good test |

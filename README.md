@@ -172,7 +172,7 @@ To update, run `git pull` in the skill's folder. How the agents differ: [Compati
 
 | Surface | Tests on |
 |---|---|
-| `--ios`, `--android`, `--both` | the iOS simulator, the Android emulator, or both |
+| `--ios`, `--android`, `--mobile` | the iOS simulator, the Android emulator, or both |
 | `--web` | a browser (Playwright) |
 | `--backend` | what's behind the UI: HTTP/GraphQL calls, database rows, queues, jobs (any CLI) |
 | *(none)* | the skill asks, recommending the surfaces where the ACs are visible |
@@ -192,7 +192,7 @@ Examples:
 ```
 /product-engineer PROJ-123 --ios                  # build a UI ticket, verify on iOS
 /product-engineer PROJ-456 --backend              # backend ticket: API, DB and queue checks
-/product-engineer PROJ-123 --test-only --both     # QA an existing feature on iOS and Android
+/product-engineer PROJ-123 --test-only --mobile   # QA an existing feature on iOS and Android
 /product-engineer PROJ-123 resume
 /product-engineer PROJ-123 --pr-comments          # the PR got reviewed: fix, re-test, push, reply
 /product-engineer PROJ-789 --web --automatic     # pipeline: no questions, ends with a PR and result.json
