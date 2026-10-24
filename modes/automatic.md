@@ -1,7 +1,7 @@
 # Automatic mode (`--automatic`)
 
 For pipelines: one run, no human, from the ticket to the PR. Read it before Preflight when the
-flag is given (or `state.md` `flags:` has it).
+flag is given (or an unfinished run being continued has it in `state.md` `flags:`).
 
 Passing the flag is the plan approval and the standing answer "take the recommended option". It
 combines with every other flag, and `state.md` records it so a resume keeps it. This file
@@ -22,7 +22,7 @@ overrides every question and every "the user decides" in the phase files:
   in the tree; the branch check fails; the work branch can't be brought up to date with origin (Preflight step 4, Ship §6); an AC or the plan turns out wrong (`phases/test.md` §4); or the
   recommended answer would cross the plan's Intent / Never or a safety rule (including a behaviour
   change the plan didn't foresee, `phases/code.md` § How to work, step 4). A stop pushes nothing: `$W/report.md` says why
-  and what a human must do, `state.md` gets `phase: stopped` and `stopped: <reason>`, and
+  and what a human must do, `state.md` gets `phase: stopped` and `stopped: <phase> — <reason>`, and
   `result.json` is written.
 - **The project context is never written.** A value found during the run (a CI check list, a driver
   value) is used for this run and logged `proposed` in `$W/context-updates.md`, never applied.
@@ -39,14 +39,14 @@ overrides every question and every "the user decides" in the phase files:
 - **Review**: an `intent-gap` / `bad-plan` finding is triaged `defer` and listed as a concern.
 - **Ship**: PASS or WAIVED → the PR, ready for review (an existing draft is marked ready), and the
   tracker fields. CONCERNS or FAIL → a **draft** PR (`gh pr create --draft`; a PR that already exists
-  is updated and turned back into a draft, `phases/ship.md` §6) with the verdict and every concern and failure at the top; no tracker
+  is updated and turned back into a draft, `phases/ship.md` §6 — a PR-comments round only on FAIL) with the verdict and every concern and failure at the top; no tracker
   done-fields, transitions or comments. A tracker field that already holds a value is left as is.
   With `--no-sim`, or an agent without subagents, the verdict is CONCERNS at best — the PR is always a
   draft. `--test-only`: shared per `qa_share`, else kept local.
 - **Last**, on every exit — Ship §8, QA report §4 (after its `qa-log.md` line), or a stop in any phase:
   `$W/result.json` —
-  `{"ticket", "mode": "build" | "test-only", "status": "done" | "stopped", "verdict": "PASS" |
-  "WAIVED" | "CONCERNS" | "FAIL" | null (before Review), "pr": <url> | null, "draft": <bool>, "branch": <name> |
-  null, "report": <path>, "auto_decisions": <count>, "reason": <why it stopped> | null}` — the file
+  `{"ticket", "mode": "build" | "test-only" | "pr-comments", "status": "done" | "stopped", "verdict": "PASS" |
+  "WAIVED" | "CONCERNS" | "FAIL" | null (before Review), "pr": <url> | null, "draft": <bool> (the PR's `isDraft` at the end), "branch": <name> |
+  null, "report": <path>, "auto_decisions": <count>, "reason": <why it stopped or ended early> | null}` — the file
   a pipeline reads. `--test-only`: `pr` is the PR under test (or null), `draft` is null and `branch`
   is the branch tested — the run changed neither.

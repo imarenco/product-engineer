@@ -26,6 +26,7 @@ All three share one core (`drivers/maestro/core.sh`):
 | restart the app | `$D relaunch [seconds]` — exits non-zero when the app didn't launch, so `relaunch && replay` stops |
 | one test step (a whole state change: act + assert) | `$D step '<maestro commands>' [ac<N>-<k>-<state> \| look-<x>] [settle]` — one long-lived Maestro session: ~20 s to connect once, then ~1–4 s per step |
 | read the screen (ids, texts, bounds) before tapping | `$D inspect` (~1 s) — one line per element a selector can use: `id=<test id> "<text>" a11y="…" [bounds]`; the full JSON is in `$SIM_OUT/inspect.json` |
+| controls a screen reader can't name, on the current screen | `$D a11y <state>` (~1 s) — `unlabeled: id=<test id> [bounds]` for each element with a test id (Android: or `clickable`) and no text, label or hint in it or inside it; to `$SIM_OUT/a11y-<state>.txt`. A container whose children carry the labels isn't flagged; an icon-font glyph isn't a label. No control with a test id on the screen (a WebView, a canvas) → "nothing checked": HUMAN, not a pass. It doesn't measure touch-target size or contrast |
 | one forced state: set values, relaunch, screenshot | `$D force <file> NAME=<value>… [shot <name>]` — edits `const\|let\|var\|val NAME = …  // TEMPTEST` lines (JS, Swift, Kotlin); native drivers rebuild first (minutes) |
 | re-check every saved flow (the fix loop) | `$D verify` — one call, no recording, no evidence touched |
 | evidence run | `$D replay` |
@@ -65,6 +66,8 @@ Driver-specific:
   close animation runs: put a ~1.5 s `extendedWaitUntil … optional` wait before it. A "close the
   overlay" point tap must sit in the same flow after an `assertVisible` of the overlay — run blind
   after a failed step, it lands on the screen below.
+- A body with a `'` in it ("Don't allow") → pass it as a quoted heredoc, one Maestro command per line:
+  `$D step "$(cat <<'YAML'` … `YAML` `)" ac1-1-list`.
 - Every step starts with `launchApp: {stopApp: false}` (added by the driver): starting the iOS driver
   backgrounds the app, and a bare `tapOn: "Search"` then "COMPLETED" on the home screen's Search pill.
 - **COMPLETED is not proof** — a tap on the wrong screen completes too. Anchor each AC's first step
@@ -147,14 +150,19 @@ Driver-specific:
 - `needs` fingerprints every tracked and untracked file except `*.md` and `.claude/` — a new source
   file counts. A whitespace-only edit counts once it's staged (unstaged ones are ignored): a rebuild
   then is unneeded but harmless. `setup` (SETUP_CMD, e.g. `pod install`) is listed only when the context sets one.
+- iOS: xcodebuild jobs (the device build, `xcodebuild test`, a typecheck that is a build) run one at a
+  time, or each with its own `-derivedDataPath` — two on one DerivedData fail with "database is locked",
+  and a test run on the Maestro simulator kills the app. The typecheck after each plan step is that
+  build: once per batch of steps.
 - `force` rebuilds before relaunching: a forced state costs a build. Prefer a test-data helper or a
   launch argument the app already reads when one exists.
 - Evidence: the replay must run on what will ship — `needs`, then `build` if NEEDED, before `relaunch`
   and `replay` (the leftover check and the removed forcing changed the code since the last build).
 
 ## Forced states
-A state real data can't reach is forced with `// TEMPTEST <TICKET>` lines (`phases/test.md` §3.2), one
-`$D force <file> NAME=<value>… shot ac<N>-<k>-<state>-forced` call per state. When the AC also needs a
+A state real data can't reach is forced with `// TEMPTEST <TICKET>` lines (`phases/test.md` §3.2), per state
+`$D force <file> NAME=<value>…`, then a `step` that navigates to it and asserts it (named
+`ac<N>-<k>-<state>-forced`), then `$D shot ac<N>-<k>-<state>-forced` (a launch-screen state: `force … shot`). When the AC also needs a
 **video** (no replayable flow, and `done_fields` expects one), record that state instead of shooting
 it: run its `force` without `shot` — the recipe's step screenshot is the evidence, one image, not two.
 In the forced dir every step is recorded and screenshotted; a step that fails leaves a `fail-` shot
@@ -190,6 +198,10 @@ rm <F>/.recording && SIM_PLATFORM=<ios|android> SIM_OUT=<F> <driver> video ac<N>
   `FORCE_SETTLE=<s>` sets how long `force` waits after relaunching.
 
 ## Verified
+- 2026-10-24: `a11y` (compact_inspect `--a11y`) on a real iOS 17 Settings hierarchy flags nothing
+  (containers whose children hold the labels aren't flagged); on fixtures it flags an id'd icon with no
+  label, an icon-font glyph, an Android `clickable` with no text, and says "nothing checked" on an
+  error object. Not yet run on a real Android hierarchy.
 - 2026-10-21: `ios.sh` on an iPhone 15 simulator (iOS 17.0) against the Settings app: `boot`, `status`,
   `inspect`, passing `ac*` steps saved (~3 s each on a warm session), a failing step leaves
   `fail-<name>.png` and isn't saved, `defaults`, `logs`, and `replay` with screenshots + a joined

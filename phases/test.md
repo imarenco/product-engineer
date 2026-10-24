@@ -31,7 +31,7 @@ forbidden patterns, integration tests in backend repos). Compare each with its P
 only a new failure is yours. Run independent gates (unit suite, typecheck, lint) as parallel background
 runs — the wall time is the longest one, not the sum. Inside the fix loop (§4) a round re-runs the
 touched specs and the typecheck; the full set runs again before you leave this phase, so the results
-Ship reuses are current. Record each result (command, pass/fail, counts) in `state.md` § Gates with the
+Ship reuses are current. Record each result (command, pass/fail, counts, time) in `state.md` § Gates with the
 code's fingerprint (`$SKILL/scripts/changes.sh fingerprint <context file>`, taken right before the
 run) — Ship reports them and re-runs only what the code has changed under. Respect the notes there (known noise,
 backlogs). When the typecheck has a backlog, the total must equal the baseline taken before coding —
@@ -78,6 +78,14 @@ when it passes on each; record the verdict per AC and surface.
      `assertNotVisible`, Playwright `expect(...)`, `jq`/regex on backend output (API, SQL, queue/CLI). A failing step
      saves `fail-<name>.png` (UI) or a transcript with `Result: FAIL` (backend): read it to diagnose.
    - **looks** are checked in step 3 (visual check), not with assertions.
+   - **accessibility** of new or changed interactive UI: once per such state and UI surface — web:
+     `await a11y('ac<N>-<k>-<state>', '<css scope of the changed part>')` at the end of the step that
+     reaches it (axe-core); mobile: `$D a11y ac<N>-<k>-<state>` on that screen (controls a screen reader
+     can't name) — named after the step, so ACs never share a file. Output:
+     `shots/<surface>/a11y-ac<N>-<k>-<state>.txt`. A critical/serious violation (web) or an unlabeled control (mobile) on what the diff added or
+     changed is the code's: fix it (§4, reproduced by that output, counted against the cap of the AC
+     whose state it is); moderate/minor ones and any on untouched elements are left for Review, not
+     fixed. `--test-only`: violations on the feature are findings.
    - behaviour the UI can't show (server state, sort order, persistence, counters): the backend surface
      (read back / SQL), the state probe `$CTX` names (e.g. `rn.sh mmkv <key>`, `ios.sh defaults`, `android.sh prefs`), logs where readable,
      or temporary on-screen `// TEMPTEST` output.
@@ -85,9 +93,11 @@ when it passes on each; record the verdict per AC and surface.
      a test-data helper `$CTX` § App knowledge names (a real inbound event, seeded records) — real
      data replays in Evidence; these write to shared environments, so one question to the user before
      the first use. Otherwise force them with `// TEMPTEST <TICKET>` code, one at a time: write the
-     forced values once as `const NAME = …; // TEMPTEST <TICKET>` lines, then each state is one
-     `force <file> NAME=<value>… shot ac<N>-<k>-<state>-forced` call (mobile; native drivers rebuild
-     first, so each forced state costs a build). A forced step's name ends in `-forced`: it is never
+     forced values once as `const NAME = …; // TEMPTEST <TICKET>` lines, then per state: `force <file> NAME=<value>…`
+     (it relaunches; native drivers rebuild first — a background run, minutes), then reach the state
+     with a `step '<navigate + assertVisible of the forced state>' ac<N>-<k>-<state>-forced` and
+     `shot ac<N>-<k>-<state>-forced` (a state on the launch screen: `force … shot <name>` in one call;
+     mobile — web: `references/web.md`). A forced step's name ends in `-forced`: it is never
      saved to `flows/` (the forcing is gone by Evidence), so its `ac<N>-<k>-<state>-forced` shot,
      taken now, is its evidence (published with the other `ac*` shots); then remove the forcing. A video of a forced state is **required** when an AC has no replayable flow
      (forcing only) and `$CTX` § Tracker `done_fields` expects a video — record it now, Ship can't:

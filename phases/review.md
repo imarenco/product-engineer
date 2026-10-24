@@ -13,7 +13,7 @@ Run the leftover check (`SKILL.md` § Rules for every phase) first — reviewers
   the pack is analysis, plan, verdicts and evidence. The context file is left out: its edits are not
   the ticket's (`SKILL.md` § Rules for every phase).
 - `analysis.md`, `plan.md` (intent, Never, coverage, project-context check), `state.md` § Verdicts and
-  § Waivers, and the evidence paths (flows, screenshots, transcripts).
+  § Waivers, and the evidence paths (flows, screenshots, transcripts, `a11y-*.txt`).
 - The rules: `$CTX` and the convention docs it names — for the Standards reviewer only; a refuter
   judges the diff against the ACs and the evidence, and doesn't need them.
 Reviewers get **paths, not your summary** — your summary is a claim they must verify.
@@ -43,7 +43,7 @@ Tell each one: read the pack, change nothing, return findings only as
    | network / external calls | error, offline and timeout paths handled; retries bounded; no unhandled promise |
    | lists, renders, queries | no N+1 or unbounded fetch; stable keys; no re-render loops |
    | stored data, migrations, storage keys | reversible or versioned; old data still readable |
-   | new interactive UI | accessibility label / role, test id where the repo uses them; contrast per design |
+   | new interactive UI | the Test a11y output (`shots/<surface>/a11y-*.txt`, `phases/test.md` §3): a critical/serious axe violation or an unlabeled control on what the diff added → major; on untouched elements → `minor`, `defer` (pre-existing; listed in the PR's Accessibility line, never a verdict concern). No a11y output for a new interactive state → CONCERNS (unknown). Test id where the repo uses them; contrast per design |
    | money, quotas, compliance | the P0 unhappy paths are tested |
 
    A check with no measurable threshold is **CONCERNS (unknown)**, never PASS.
@@ -66,7 +66,7 @@ Log each as `- <id> <class> <triage>: <one line>` under `## Review triage` in `s
 round never re-argues it.
 
 **The user answers an `intent-gap` / `bad-plan` by changing the plan**: update `analysis.md`
-(§ Clarifications) and `plan.md`, then the plan gate's **Approval** question again (`SKILL.md` Phase 3)
+(§ Clarifications) and `plan.md`, then the plan gate's **Approval** question again (`phases/plan.md`)
 — a changed Intent is a new approval. Write it to `state.md` before coding: `phase: code`, a
 `replan: r<n> — Review round owed` line (removed after that round), the changed ACs' verdicts as
 `PENDING (plan changed)`, and the changed plan steps unticked. Then Code for the new or changed
@@ -76,7 +76,7 @@ change, outside the 2-round cap.
 
 ## 4. Rounds
 After patches and re-tests, a second round reviews **only what changed**: give it
-`diff diff-r<n-1>.patch diff-r<n>.patch` (the change since the last round) and the files it touches. Max 2 rounds per Review
+`diff <last round's patch> <this round's patch>` (the change since the last round) and the files it touches. Max 2 rounds per Review
 phase (a round triggered later by an Evidence regression is separate); anything still open goes to the
 user with the evidence (`--automatic`: deferred and listed as a concern; a critical one keeps the
 verdict at FAIL).

@@ -6,9 +6,10 @@ commit, no product-code change; nothing of the code is pushed** — only the sha
 picks in §3 may publish media (the assets branch, `references/publish.md`).
 
 ## 1. Leave the tree as you found it
-- The leftover check passes (`SKILL.md` § Rules for every phase), then `git status --short`: nothing
-  tracked may be modified except the context file (left as it is). Any
-  change left by forcing code → `git checkout -- <file>` (it was test scaffolding, never a fix).
+- Revert what forcing left (`git checkout -- <file>`: test scaffolding, never a fix), then the leftover
+  check passes (`SKILL.md` § Rules for every phase) and `git status --short`: nothing tracked may be
+  modified except the context file (left as it is). Then `git checkout -m <the branch you started
+  on>` (`state.md`) — the detached checkout isn't left behind.
 - Note the exact code tested: branch and `git rev-parse --short HEAD`.
 
 ## 2. Write `$W/report.md`
@@ -22,13 +23,13 @@ Verdict (derived as in `phases/review.md` §5): ✅ PASS — ready | ⚠️ CONC
 |---|---|---|---|---|---|
 | #1 <paraphrase> | P0–P3 | ✅/❌/⚠️/— | <steps, assertions, design frame> | <test file:line / evidence only> | <screenshot / video / transcript> |
 
-## Findings (one per FAIL, most severe first — from `state.md` § Findings)
-### F1 — AC #N: <what is wrong, in user terms>
+## Findings (one per FAIL or accessibility violation, most severe first — from `state.md` § Findings)
+### F1 — AC #N (or `—` for an accessibility finding): <what is wrong, in user terms>
 **In short:** You <do X>. You see <Y>. You should see <Z>.  ← one plain line, no code words
 - Platform(s): … · Severity: blocker / major / minor (cosmetic)
 - Steps to reproduce: 1. … 2. … 3. …
 - Expected (AC / design): … · Actual: …
-- Evidence: `fail-<step>.png`, clip, design frame
+- Evidence: `fail-<step>.png`, clip, design frame (accessibility: `a11y-<state>.txt`)
 - Likely cause: `<file>:<line>` — <one or two sentences, from reading the code; say "unconfirmed">
 
 ## Design deltas (pass with notes)
@@ -71,6 +72,4 @@ tracker for sub-bugs filed since: the ticket's children created today, from `get
 `none`: this log is the only record). `--automatic`: then write `$W/result.json` — the last thing the
 run writes (`modes/automatic.md`).
 
-Project facts in `$W/context-updates.md`: don't offer them after every run. When the user ends the
-session or asks, collect the `proposed` lines from every `.claude/work/*/context-updates.md` not yet
-applied into **one** multi-select question; apply the chosen ones, mark the rest `declined`.
+Project facts in `$W/context-updates.md`: offered once per session (`SKILL.md` § Rules for every phase).

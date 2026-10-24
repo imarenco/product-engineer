@@ -62,7 +62,7 @@ behaviour ("shows the old results", "crashes when…"). For each such AC write t
   surface for it is ready (backend: now; a device: once Preflight's build is installed), as a step
   named `repro-<n>` (drivers never save it as a flow; keep its failure output for the PR's
   root-cause note). Not reproducible by the plan gate → it is the plan's first step, `S00
-  reproduce`, before any code. `--test-only`: no reproduction — the AC's step on the code under test
+  reproduce`, before any code (`--no-sim`: a unit or integration test written to fail on the base). `--test-only`: no reproduction — the AC's step on the code under test
   is the check;
 - Expected: `WHEN <condition> THEN the app SHALL <right behaviour>`;
 - Unchanged: `WHEN <neighbouring condition> THEN the app SHALL CONTINUE TO <existing behaviour>` —

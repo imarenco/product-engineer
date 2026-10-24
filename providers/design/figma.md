@@ -29,7 +29,9 @@ grepping.
 `get_screenshot(fileKey, nodeId: frameId, maxDimension: 1024)` → a short-lived URL; `curl` it to
 `$W/design/<frame>.png` and Read it. Instance ids (`I…;…`) can't be screenshotted: use the parent frame.
 The URL can't be fetched (sandbox, no network for curl) → call again with `enableBase64Response: true`
-and look at the inline image.
+and look at the inline image (a small `maxDimension` keeps it light). No `$W/design/<frame>.png` then: compare by
+viewing the frame and the `look-` shot yourself, and say in § Visual that this state has no side-by-side
+image (Evidence skips its `-vs-design` file).
 
 ## spec(frame)
 `get_design_context(fileKey, nodeId)` → real sizes, paddings, font size/weight, colours, component

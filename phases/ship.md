@@ -16,7 +16,7 @@ Every claim this phase makes comes from a command run in this session on the fin
   as it is (`SKILL.md` § Rules for every phase).
 
 ## 2. Gate before publishing — the ticket verdict from Review
-`--automatic`: no questions — PASS as below; CONCERNS or FAIL → a draft PR (`modes/automatic.md`).
+`--automatic`: no questions — PASS or WAIVED as below; CONCERNS or FAIL → a draft PR (`modes/automatic.md`).
 - **PASS** → go on without asking: publish + commit + push + PR + tracker update are part of this skill.
 - **CONCERNS** → one question listing every concern and every outward action this phase will
   take (assets branch, push, PR, tracker fields): go on / fix first / stop. On "go on", each concern
@@ -28,7 +28,9 @@ Every claim this phase makes comes from a command run in this session on the fin
   (`phases/review.md` §5) and this gate applies to the new one / stop here. Never waive on your own.
 
 ## 3. Publish the media
-The recipe — destination, the one-call publish block, the names it produces, what never to publish:
+First, when the branch is on origin: `git fetch origin` and `git merge-base --is-ancestor origin/<branch> HEAD`
+— not an ancestor (someone pushed during the run) → §6's rejected-push answer now, before anything
+is published. The recipe — destination, the one-call publish block, the names it produces, what never to publish:
 `references/publish.md`. Save publish's output as `$W/media.md` for the PR body.
 - `--test-only`: only after the user chose to share (`phases/qa-report.md` §3).
 
@@ -41,9 +43,10 @@ work moves with it).
 - Stage only the ticket's files: `git add <explicit paths>` — never `-A`, never the never-stage list
   in `$CTX`, never local hacks, never `.claude/`, never the context file. Generated code is committed when the plan
   regenerated it.
-- `git diff --cached --stat` must match the plan.
+- `git diff --cached --stat` must match the plan. Nothing staged (a round that changed no code) → no
+  commit; push only when the branch is ahead of origin.
 - Message per `$CTX` § Git & PR (e.g. Conventional Commits with the ticket key), ending with the
-  Co-Authored-By trailer from the system attribution.
+  Co-Authored-By trailer your agent's attribution gives, when it gives one.
 - A failing commit hook is fixed at its cause, never skipped with `--no-verify`.
 
 ## 6. Push and PR
@@ -75,8 +78,8 @@ has none:
 ## What changes
 - `<file or area>`: <behaviour change>, <reuse / new token / new util> …
 - Decisions taken with product/user during the ticket (from `analysis.md` § Clarifications), the
-  assumptions applied, and design deltas left on purpose. `--automatic`: a **Decided automatically**
-  list — every `auto:` line from `analysis.md` § Clarifications and `state.md` § Auto decisions.
+  assumptions applied, and design deltas left on purpose. Whenever any were made (`--automatic`, now or before a resume): a
+  **Decided automatically** list — every `auto:` line from `analysis.md` § Clarifications and `state.md` § Auto decisions.
 - Bug fixes: the confirmed root cause in one or two sentences (from `state.md` § Root causes).
 
 **Merge danger:** <two-way door: plain code, revertable> | <one-way door: migration, stored-data or
@@ -87,6 +90,7 @@ or what is affected if it's wrong, and how to roll back>.
 Surfaces (only those tested: devices / browser / backend environment), build of this branch:
 - [x] <AC-level check with the concrete observation>
 - [x] Unit: `<spec file>` — <what it protects> (N tests)
+- [x] Accessibility (<axe tags> / screen-reader labels) on <states>: <no violations on changed elements | what's left>
 - [x] CI checks run locally: `<command>` ✅ (<counts>) · … — "CI only: <check>" for the rest
 - [ ] `<command>` ❌ — fails on `<base>` too (accepted at the plan gate)
 - [ ] <not run: drag/pan, a real device, a state the environment can't reach> — why
@@ -107,7 +111,7 @@ An AC with several states gets one image per state in its Evidence cell. A force
 "(forced)". Follow-ups the user agreed to (e.g. backend work) get a short section with a draft.
 A PR for this branch already exists (`gh pr view <branch> --json number,url,isDraft` succeeds — a re-run
 of a shipped ticket) → don't create one: `gh pr edit <number> --body-file $W/pr.md`; `--automatic`
-also sets its draft state by the verdict: PASS or WAIVED and `isDraft` → `gh pr ready <number>`;
+(not in a PR-comments round: `modes/pr-comments.md` decides) also sets its draft state by the verdict: PASS or WAIVED and `isDraft` → `gh pr ready <number>`;
 any other verdict → `gh pr ready <number> --undo` (back to draft). Its URL
 is the `pr` of `result.json`.
 After creating or updating it, `gh pr view --json body` and check every media URL is in the body.
@@ -142,4 +146,4 @@ Write `$W/report.md`, set `phase: done` in `state.md`, and answer in chat with:
 Offer, don't do: a review post in the team's channel (`$CTX` § Git & PR), a tracker `comment` with
 the AC table, a `transition` of the ticket's status.
 
-Project facts in `$W/context-updates.md` are offered once per session, all runs together — see `phases/qa-report.md` §4.
+Project facts in `$W/context-updates.md`: offered once per session (`SKILL.md` § Rules for every phase).

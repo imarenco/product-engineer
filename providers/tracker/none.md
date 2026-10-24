@@ -1,7 +1,8 @@
 # Tracker provider — none (the task comes in the conversation or a file)
 
 For repos without a ticket system, or a quick task the user describes. The "ticket key" is a short
-slug the user agrees to (e.g. `search-empty-state`), used for `$W` and branch names.
+slug the user agrees to (e.g. `search-empty-state`), used for `$W` and branch names (`--automatic`: a
+3–5-word kebab slug of the task's title, logged as an `auto:` decision).
 
 ## Config keys (from `$CTX` § Tracker)
 | Key | Example | Use |

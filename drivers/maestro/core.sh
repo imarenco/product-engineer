@@ -1,5 +1,6 @@
 # Commands every mobile driver has (react-native/rn.sh, ios/ios.sh, android/android.sh):
 #   status · boot · setup · needs · build · relaunch [settle-s] · inspect · shot <name> · verify · replay
+#   a11y <name>: the controls on the current screen a screen reader can't name (-> $SIM_OUT/a11y-<name>.txt)
 #   verify: every saved flow once, unrecorded — the fix loop's regression check in one call
 #   step '<maestro commands, \n separated>' [ac<N>-<k>-<state> | look-<x>] [settle-s]
 #   force <file> NAME=<value>… [shot <name>]   set `const|let|var|val NAME = …  // TEMPTEST` lines, relaunch, screenshot
@@ -7,7 +8,8 @@
 #   SIM_OUT evidence dir — required on every call (`help` excepted). Project values (APP_ID, IOS_DEVICE,
 #   IOS_RUNTIME, IOS_UDID, ANDROID_AVD, SETUP_CMD, IOS_BUILD_CMD, ANDROID_BUILD_CMD, ANDROID_APK) come from
 #   the ```env block of the project context (.claude/project-context.md, else the § Project context of
-#   AGENTS.md / CLAUDE.md; PROJECT_CONTEXT overrides). FORCE_SETTLE: the seconds `force` waits.
+#   AGENTS.md / CLAUDE.md; PROJECT_CONTEXT overrides). FORCE_SETTLE: the seconds `force` waits;
+#   MAESTRO_CALL_TIMEOUT: the seconds one Maestro call may take (default 600).
 # Which device (`status` says which and why):
 #   iOS: SIM_UDID (this call) > IOS_UDID (context, one machine) > IOS_DEVICE + IOS_RUNTIME (context, by
 #     name: the same on every machine; newest iOS when no runtime) > fallback: a booted simulator, one
@@ -328,6 +330,15 @@ then adb install -r ${ANDROID_APK:-<apk path>}"
     session inspect "$(device_id)" > "$OUT/inspect.json"; rc=$?
     [ $rc -eq 0 ] || { cat "$OUT/inspect.json"; exit $rc; }
     python3 -I "$CORE/compact_inspect.py" "$OUT/inspect.json" || cat "$OUT/inspect.json"
+    ;;
+  a11y)
+    [ -n "${2:-}" ] || { echo "usage: $DRV_NAME a11y <name>"; exit 2; }; n="$2"
+    [[ "$n" =~ ^[A-Za-z0-9._-]+$ ]] || { echo "a11y: the name takes letters, digits, . _ - only"; exit 2; }
+    rm -f "$OUT/a11y-$n.txt"
+    session inspect "$(device_id)" > "$OUT/inspect.json" || { cat "$OUT/inspect.json"; exit 1; }
+    python3 -I "$CORE/compact_inspect.py" "$OUT/inspect.json" --a11y > "$OUT/a11y-$n.txt" \
+      || { cat "$OUT/a11y-$n.txt"; rm -f "$OUT/a11y-$n.txt"; echo "a11y: can't read the hierarchy, see $OUT/inspect.json"; exit 1; }
+    cat "$OUT/a11y-$n.txt"; echo "a11y: $OUT/a11y-$n.txt"
     ;;
   force)
     # force <file> NAME=<value>… [shot <name>]: one call per forced state. Sets each

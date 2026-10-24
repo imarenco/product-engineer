@@ -9,7 +9,7 @@
 #   cmd  <name> '<command>' [regex-assert]                 any other backend system: a queue, a job table
 #                                                          tool, a cache, a log query (run from the repo root)
 #   BACKEND_OUT evidence dir — required on every call (`help` excepted). Project values (API_URL,
-#   API_GRAPHQL_PATH, API_AUTH_CMD, DB_CMD, BACKEND_RESET_CMD) come from the ```env block of the project
+#   API_GRAPHQL_PATH, API_AUTH_CMD, API_TIMEOUT (seconds, default 60), DB_CMD, BACKEND_RESET_CMD) come from the ```env block of the project
 #   context (.claude/project-context.md, else the § Project context of AGENTS.md / CLAUDE.md; PROJECT_CONTEXT overrides).
 #   API_AUTH_CMD prints one header line ("Authorization: Bearer …"); it is never written to transcripts.
 set -uo pipefail

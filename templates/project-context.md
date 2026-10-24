@@ -75,6 +75,8 @@ How ACs get exercised in this repo. Keep only the rows that apply; the skill off
 Never point a surface at production unless it is explicitly read-only.
 `automatic_shared_writes: yes` lets `--automatic` runs write test data to the shared environments
 above without a human confirming; unset = those ACs are BLOCKED in automatic runs.
+`automatic_deploy: yes` lets them run the deploy command named here to put the work tree on a
+non-local test target; unset = never (ACs that need the change there are BLOCKED).
 
 Driver values (sourced as shell; `$UDID`, `$SERIAL`, `$REPO` are set by the drivers). Keep only the
 surfaces you use:
@@ -104,7 +106,8 @@ API_AUTH_CMD=''      # prints one header line ("Authorization: Bearer …"); nev
 DB_CMD=''            # reads SQL on stdin (e.g. psql …); confirm before writes to a shared DB
 BACKEND_RESET_CMD='' # resets test data before a replay
 # optional, driver defaults: WEB_READY_URL=$WEB_URL WEB_VIEWPORT_W=1280 WEB_VIEWPORT_H=800
-#   WEB_SLOWMO=600 API_GRAPHQL_PATH=/graphql
+#   WEB_SLOWMO=600 WEB_A11Y_TAGS=wcag2a,wcag2aa,wcag21a,wcag21aa
+#   WEB_AUTH_FILE=<repo>/.claude/work/.web/auth.json API_GRAPHQL_PATH=/graphql
 ```
 Surface notes — runs add to this: devices to avoid, signing for local builds, how to probe app state
 and read logs, seeded users and login-only pages, how to get a token or reach the DB (tunnels), and

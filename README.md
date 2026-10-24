@@ -26,15 +26,17 @@ Give your agent a ticket key. It then works the way a careful product engineer w
 3. **Plans** the steps, the tests and what's out of scope, then **waits for your approval**.
 4. **Writes the code** in your repo's conventions.
 5. **Proves every AC** on a real iOS simulator, Android emulator, browser or backend, plus your unit
-   tests and CI checks — and fixes what fails.
+   tests, CI checks and an accessibility check of the new UI — and fixes what fails.
 6. **Gets an independent review** that tries to break the "done" claim.
 7. **Records evidence**: screenshots, videos and request transcripts of the final code.
 8. **Opens the pull request** with the verdict, the AC table and the evidence, and updates the
    ticket.
 
 A **QA mode** (`--test-only`) checks an already-built feature against its ACs and writes a report,
-without changing any code. An **automatic mode** (`--automatic`) runs the whole workflow with no one
-answering, for CI pipelines.
+without changing any code. A **PR comments mode** (`--pr-comments`) answers the review comments on
+the ticket's PR: it fixes what's right, explains what isn't, re-tests, pushes and replies to each
+comment (in its thread, or one PR comment for the rest). An **automatic mode** (`--automatic`) runs the whole workflow with no one answering, for CI
+pipelines.
 
 ```
 /product-engineer PROJ-123 --ios
@@ -114,7 +116,9 @@ stopped at — a QA run too: resume finds either folder and keeps the run's flag
 | `--test-only`: check out the code under test | at Preflight, after you pick it — a detached checkout; temporary `TEMPTEST` edits (and `rn.sh quiet` in `index.js`) are reverted before the report |
 | Change the product code | only after you approve the plan (`--automatic`: the flag is the approval), and only inside it; anything the plan didn't foresee is a question (`--automatic`: the run stops) |
 | Push, open the PR, publish evidence, fill tracker fields | only in the last phase, and only when the review verdict is PASS or every failure was waived by you; otherwise it asks first. With `--automatic`: a draft PR instead, and no tracker fields |
+| `--pr-comments`: push the fixes, reply to the review comments, post the round's verdict as a PR comment, re-request review | after you approve the triage of every comment and the draft replies to what won't be changed (`--automatic`: the flag is the approval); threads are never resolved for the reviewer |
 | Comment on the ticket, move its status, post to a team channel | only when you ask, or with a standing choice you saved |
+| Deploy the work tree to a non-local test target (so staging runs the change) | only with a deploy command your context names, after you confirm (`--automatic`: only with `automatic_deploy: yes`); otherwise the ACs that need it are BLOCKED |
 | Write test data to a shared environment (staging, a shared database or queue) | only after you confirm, before the first write (`--automatic`: only with `automatic_shared_writes: yes`). Never to production — a surface may point at production only read-only |
 
 It never stages files outside the ticket, never commits the project context with the ticket, never
@@ -179,6 +183,7 @@ server state behind them.
 | Option | Meaning |
 |---|---|
 | `--test-only` | QA mode: no code changes, no branch, no PR — a QA report with findings and sub-bugs |
+| `--pr-comments` | answer the open review comments on the ticket's PR: fix, re-test, push, reply to each comment |
 | `--no-sim` | unit tests and CI checks only, no surface |
 | `--automatic` | no human: the plan is approved and every question takes its recommended answer — for [pipelines](#running-in-a-pipeline) |
 | `resume` | continue a run from where it stopped |
@@ -189,10 +194,11 @@ Examples:
 /product-engineer PROJ-456 --backend              # backend ticket: API, DB and queue checks
 /product-engineer PROJ-123 --test-only --both     # QA an existing feature on iOS and Android
 /product-engineer PROJ-123 resume
+/product-engineer PROJ-123 --pr-comments          # the PR got reviewed: fix, re-test, push, reply
 /product-engineer PROJ-789 --web --automatic     # pipeline: no questions, ends with a PR and result.json
 ```
 
-Plain requests work too: "implement PROJ-123", "QA PROJ-123", "verify the ACs of PROJ-123".
+Plain requests work too: "implement PROJ-123", "QA PROJ-123", "verify the ACs of PROJ-123", "address the review comments on PROJ-123".
 
 ## Running in a pipeline
 
@@ -204,7 +210,8 @@ Plain requests work too: "implement PROJ-123", "QA PROJ-123", "verify the ACs of
 
 - **The plan is approved by the flag**, and every question takes its recommended answer. Each one is
   logged and listed in the PR under "Decided automatically".
-- **PASS opens a PR ready for review** and fills the tracker fields. **CONCERNS or FAIL opens a
+- **PASS (or WAIVED, with the waivers a person gave) opens a PR ready for review** (a `--pr-comments`
+  round keeps the PR's draft state, except back to draft on FAIL) and fills the tracker fields. **CONCERNS or FAIL opens a
   draft PR** with the verdict and every problem at the top, and leaves the tracker alone, so nothing
   looks approved that isn't.
 - **It stops, and pushes nothing,** when no answer is safe to take alone: an incomplete project
@@ -272,6 +279,7 @@ ANDROID_AVD=Pixel_8      # unset = the running emulator, or the first AVD
 | Trackers | Jira, Linear, GitHub Issues, none (the task comes in the conversation) |
 | Design | Figma, none |
 | Test surfaces | iOS simulator and Android emulator (React Native or native), web (Playwright), backend (HTTP, GraphQL, SQL, any CLI), or an external skill or command your context names |
+| Accessibility | axe-core (web, WCAG 2.1 A + AA by default), unlabeled controls (iOS, Android) |
 | Code hosting | GitHub |
 
 Another tracker or design tool is one file under `providers/` that implements the operations in
@@ -327,7 +335,8 @@ the Review phase, which can't be independent: the PR says so and the verdict is 
 
 ```
 SKILL.md              the method: phases, loops, rules (the agent reads this first)
-modes/                test-only, automatic, resume, new context — read only when that mode applies
+modes/                test-only, PR comments, automatic, resume, new context — read only when that
+                      mode applies
 phases/               one file per phase, read when the run enters it
 providers/            how to talk to each tracker (jira, linear, github-issues, none)
                       and design tool (figma, none)
@@ -337,7 +346,7 @@ drivers/              one CLI per test surface: react-native/rn.sh, ios/ios.sh, 
 references/           manuals for each surface (commands, pitfalls, verified behaviour), the visual
                       check and the evidence-publishing recipe
 scripts/              shared helpers: media (join, frame, compare, publish), the Maestro session
-                      server, project context lookup, change checks
+                      server, project context lookup, change checks, PR review comments
 templates/            the project context template
 evals/                scenarios and assertions to check a change to the skill
 ```

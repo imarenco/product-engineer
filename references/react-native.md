@@ -23,8 +23,8 @@ on every call.
 - Android reaches the bundler through `adb reverse tcp:<port>` (`build` and `relaunch` set it).
   After a Metro cache reset, the first Android bundle takes minutes; the app sits on the splash.
 - Never pipe `rn.sh metro` into `tail`/`grep` in a chain (`setup; metro | tail; build`): Metro keeps
-  the pipe open, so the chain hangs after "metro: up". Run `metro` unpiped and poll
-  `curl localhost:<port>/status`.
+  the pipe open, so the chain hangs after "metro: up". Run `metro` unpiped (it waits until
+  Metro is up, ≤ 2 min).
 - After `setup` (npm ci) the app can show "Unable to resolve module @babel/runtime/…" with the file
   on disk: stale watchman. `watchman watch-del-all`, restart Metro, relaunch.
 - `npm ci` fails with ENOTEMPTY while a Gradle daemon holds `node_modules`: `setup` stops Metro first;
@@ -47,5 +47,5 @@ on every call.
 - `mmkv` lists every write to the matching keys, oldest first; the last one is the live value (MMKV
   appends). Single-byte values print as numbers (`0` = false or empty string).
 - ScrollViews inside an RN `Modal` don't scroll under Maestro → HUMAN, or tap by point.
-- `force` edits `const|let NAME = …; // TEMPTEST` lines and relaunches; Metro serves the edit, no
+- `force` edits `const|let|var NAME = …; // TEMPTEST` lines and relaunches; Metro serves the edit, no
   rebuild.

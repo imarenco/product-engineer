@@ -7,7 +7,7 @@
 #   reload                 reload the JS through Metro
 #   quiet <on|off>         LogBox toasts off/on (a `TEMPTEST quiet` line in index.js; relaunch to apply)
 #   mmkv <key> [n]         last n writes to matching MMKV keys (IOS_STATE_FILE / ANDROID_STATE_FILE)
-#   force …                edits `const|let NAME = …; // TEMPTEST` lines; Metro serves the edit, no rebuild
+#   force …                as below (`const|let|var|val NAME = …  // TEMPTEST` lines); Metro serves the edit, no rebuild
 #   logs <text> [lines]    Android only: JS console output from logcat (tag ReactNativeJS)
 #   SIM_PLATFORM  ios | android — required on every call, with SIM_OUT. METRO_PORT, IOS_STATE_FILE and
 #   ANDROID_STATE_FILE come from the project context.
